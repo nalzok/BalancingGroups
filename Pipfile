@@ -1,0 +1,26 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+six = "*"
+numpy = "*"
+scipy = "*"
+pandas = "*"
+scikit-learn = "*"
+gdown = "*"
+tqdm = "*"
+pillow = "*"
+torch = "*"
+torchvision = "*"
+datasets = "*"
+transformers = "*"
+matplotlib = "*"
+seaborn = "*"
+submitit = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.9"

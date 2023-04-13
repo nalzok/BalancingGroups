@@ -91,7 +91,8 @@ class ERM(torch.nn.Module):
         }
 
         if data_type == "images":
-            self.network = torchvision.models.resnet.resnet50(pretrained=True)
+            weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V1
+            self.network = torchvision.models.resnet.resnet50(weights=weights)
             self.network.fc = torch.nn.Linear(
                 self.network.fc.in_features, self.n_classes)
 
@@ -137,13 +138,11 @@ class ERM(torch.nn.Module):
                 torch.nn.BCEWithLogitsLoss(reduction="none")(x.squeeze(),
                                                              y.float())
 
-        self.cuda()
-
     def compute_loss_value_(self, i, x, y, g, epoch):
         return self.loss(self.network(x), y).mean()
 
     def update(self, i, x, y, g, epoch):
-        x, y, g = x.cuda(), y.cuda(), g.cuda()
+        x, y, g = x, y, g
         loss_value = self.compute_loss_value_(i, x, y, g, epoch)
 
         if loss_value is not None:
@@ -177,7 +176,7 @@ class ERM(torch.nn.Module):
         self.eval()
         with torch.no_grad():
             for i, x, y, g in loader:
-                predictions = self.predict(x.cuda())
+                predictions = self.predict(x)
                 if predictions.squeeze().ndim == 1:
                     predictions = (predictions > 0).cpu().eq(y).float()
                 else:
@@ -219,7 +218,7 @@ class GroupDRO(ERM):
     def __init__(self, hparams, dataset):
         super(GroupDRO, self).__init__(hparams, dataset)
         self.register_buffer(
-            "q", torch.ones(self.n_classes * self.n_groups).cuda())
+            "q", torch.ones(self.n_classes * self.n_groups))
 
     def groups_(self, y, g):
         idx_g, idx_b = [], []
@@ -251,7 +250,7 @@ class JTT(ERM):
     def __init__(self, hparams, dataset):
         super(JTT, self).__init__(hparams, dataset)
         self.register_buffer(
-            "weights", torch.ones(self.n_examples, dtype=torch.long).cuda())
+            "weights", torch.ones(self.n_examples, dtype=torch.long))
 
     def compute_loss_value_(self, i, x, y, g, epoch):
         if epoch == self.hparams["T"] + 1 and\
@@ -286,3 +285,41 @@ class JTT(ERM):
         self.optimizer.load_state_dict(dicts["optimizer"])
         if self.lr_scheduler is not None:
             self.lr_scheduler.load_state_dict(dicts["scheduler"])
+
+
+class TTLSA(ERM):
+    def __init__(self, hparams, dataloader):
+        super().__init__(hparams, dataloader)
+        self.register_buffer("prior", torch.ones(self.n_classes * self.n_groups))
+
+        assert self.data_type == "images"
+        self._predict_joint()
+
+    def _predict_joint(self):
+        optimizers = {
+            "adamw": get_bert_optim,
+            "sgd": get_sgd_optim
+        }
+
+        weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V1
+        self.network = torchvision.models.resnet.resnet50(weights=weights)
+        self.network.fc = torch.nn.Linear(
+            self.network.fc.in_features, self.n_classes * self.n_groups)
+
+        self.optimizer = optimizers['sgd'](
+            self.network,
+            self.hparams['lr'],
+            self.hparams['weight_decay'])
+
+        self.lr_scheduler = None
+        self.loss = torch.nn.CrossEntropyLoss(reduction="none")
+
+    def compute_loss_value_(self, i, x, y, g, epoch):
+        return self.loss(self.predict(x), y).mean()
+
+    def predict(self, x):
+        predictions = self.network(x)
+        predictions *= self.prior
+        predictions = predictions.reshape(-1, self.n_classes, self.n_groups)
+        predictions = predictions.sum(axis=-1)
+        return predictions

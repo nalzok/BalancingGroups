@@ -74,7 +74,8 @@ def run_experiment(args):
         "rwy": models.ERM,
         "rwg": models.ERM,
         "dro": models.GroupDRO,
-        "jtt": models.JTT
+        "jtt": models.JTT,
+        "ttlsa": models.TTLSA,
     }[args["method"]](args, loaders["tr"])
 
     last_epoch = 0
@@ -127,9 +128,11 @@ if __name__ == "__main__":
 
         args["dataset"] = randl(
             ["waterbirds", "celeba", "multinli", "civilcomments"])
+        args["dataset"] = "waterbirds"  # override
 
         args["method"] = randl(
-            ["erm", "suby", "subg", "rwy", "rwg", "dro", "jtt"])
+            ["erm", "suby", "subg", "rwy", "rwg", "dro", "jtt", "ttlsa"])
+        args["method"] = "ttlsa"        # override
 
         args["num_epochs"] = {
             "waterbirds": 300 + 60,
@@ -137,6 +140,7 @@ if __name__ == "__main__":
             "multinli": 5 + 2,
             "civilcomments": 5 + 2
         }[args["dataset"]]
+        args["num_epochs"] = 1          # override
 
         args["eta"] = 0.1
         args["lr"] = randl([1e-5, 1e-4, 1e-3])
