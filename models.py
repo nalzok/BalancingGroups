@@ -290,12 +290,21 @@ class JTT(ERM):
 class TTLSA(ERM):
     def __init__(self, hparams, dataloader):
         super().__init__(hparams, dataloader)
-        self.register_buffer("prior", torch.ones(self.n_classes * self.n_groups))
+        self.register_buffer("source_prior", torch.ones(self.n_classes * self.n_groups))
+        self.source_prior = self._empirical_count(dataloader)
 
         assert self.data_type == "images"
-        self._predict_joint()
+        self._make_predict_joint()
 
-    def _predict_joint(self):
+    def _empirical_count(self, dataloader):
+        dataset = dataloader.dataset
+        y = torch.ByteTensor(dataset.y)
+        g = torch.ByteTensor(dataset.g)
+        m = y * self.n_groups + g
+        bincount = torch.bincount(m, minlength=self.n_classes * self.n_groups)
+        return bincount / torch.sum(bincount)
+
+    def _make_predict_joint(self):
         optimizers = {
             "adamw": get_bert_optim,
             "sgd": get_sgd_optim
@@ -315,11 +324,38 @@ class TTLSA(ERM):
         self.loss = torch.nn.CrossEntropyLoss(reduction="none")
 
     def compute_loss_value_(self, i, x, y, g, epoch):
-        return self.loss(self.predict(x), y).mean()
+        return self.loss(self.predict(x, adapt=False), y).mean()
 
-    def predict(self, x):
-        predictions = self.network(x)
-        predictions *= self.prior
-        predictions = predictions.reshape(-1, self.n_classes, self.n_groups)
-        predictions = predictions.sum(axis=-1)
-        return predictions
+    # def update(self, i, x, y, g, epoch):
+    #     pass
+
+    def predict(self, x, adapt: bool = True):
+        logits = self.network(x)
+        log_target_prior = log_source_prior = torch.log(self.source_prior)
+
+        # MAP via EM algorithm
+        last_objective = float('-inf')
+        iterations = 0
+        while True:
+            # E step
+            target_logits = logits - log_source_prior + log_target_prior
+            target_logits = target_logits - torch.logsumexp(target_logits, dim=-1, keepdim=True)
+
+            # calculate objective
+            llk = torch.logsumexp(target_logits, dim=-1)
+            objective = torch.sum(llk)
+            print(f"{adapt = }, {iterations = }, {last_objective} -> {objective}")
+            iterations += 1
+
+            # we must enter the loop at least once
+            if not adapt or objective <= last_objective:
+                break
+            last_objective = objective
+
+            # M step
+            log_target_prior = torch.logsumexp(target_logits, dim=0)
+
+        return target_logits
+
+    def calibrate(self, x):
+        raise NotImplementedError
