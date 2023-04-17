@@ -331,32 +331,31 @@ class TTLSA(ERM):
 
     def predict(self, x, adapt: bool = True):
         logits = self.network(x)
-        prob = torch.softmax(logits, dim=-1)
-        target_prior = self.source_prior
+        if not adapt:
+            return logits
 
-        # MAP via EM algorithm
-        last_objective = float('-inf')
-        iterations = 0
-        while True:
-            # E step
-            target_prob = prob / self.source_prior * target_prior
-            target_prob = target_prob / torch.sum(target_prob, dim=-1, keepdim=True)
+        with torch.inference_mode():
+            # calculate the MLE for target_prior
+            prob = torch.softmax(logits, dim=-1)
+            target_prior = self.source_prior
+            last_objective = float("-inf")
+            while True:
+                # E step
+                target_prob = prob / self.source_prior * target_prior
 
-            # calculate objective
-            llk = torch.sum(torch.log(target_prob), dim=-1)
-            objective = torch.sum(llk)
-            print(f"{adapt = }, {iterations = }, {last_objective} -> {objective}")
-            iterations += 1
+                # calculate objective
+                llk = torch.log(torch.sum(target_prob, dim=-1))
+                objective = torch.sum(llk)
+                if objective <= last_objective:
+                    break
+                last_objective = objective
 
-            # we must enter the loop at least once
-            if not adapt or objective <= last_objective:
-                break
-            last_objective = objective
+                # M step
+                target_prob /= torch.sum(target_prob, dim=-1, keepdim=True)
+                target_prior = torch.sum(target_prob, dim=0)
+                target_prior /= torch.sum(target_prior, dim=-1, keepdim=True)
 
-            # M step
-            target_prior = torch.sum(target_prob, dim=0)
-
-        return torch.log(target_prob)
+            return torch.log(target_prob)
 
     def calibrate(self, x):
         raise NotImplementedError
