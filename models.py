@@ -331,18 +331,19 @@ class TTLSA(ERM):
 
     def predict(self, x, adapt: bool = True):
         logits = self.network(x)
-        log_target_prior = log_source_prior = torch.log(self.source_prior)
+        prob = torch.softmax(logits, dim=-1)
+        target_prior = self.source_prior
 
         # MAP via EM algorithm
         last_objective = float('-inf')
         iterations = 0
         while True:
             # E step
-            target_logits = logits - log_source_prior + log_target_prior
-            target_logits = target_logits - torch.logsumexp(target_logits, dim=-1, keepdim=True)
+            target_prob = prob / self.source_prior * target_prior
+            target_prob = target_prob / torch.sum(target_prob, dim=-1, keepdim=True)
 
             # calculate objective
-            llk = torch.logsumexp(target_logits, dim=-1)
+            llk = torch.sum(torch.log(target_prob), dim=-1)
             objective = torch.sum(llk)
             print(f"{adapt = }, {iterations = }, {last_objective} -> {objective}")
             iterations += 1
@@ -353,9 +354,9 @@ class TTLSA(ERM):
             last_objective = objective
 
             # M step
-            log_target_prior = torch.logsumexp(target_logits, dim=0)
+            target_prior = torch.sum(target_prob, dim=0)
 
-        return target_logits
+        return torch.log(target_prob)
 
     def calibrate(self, x):
         raise NotImplementedError
