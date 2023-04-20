@@ -138,11 +138,13 @@ class ERM(torch.nn.Module):
                 torch.nn.BCEWithLogitsLoss(reduction="none")(x.squeeze(),
                                                              y.float())
 
+        self.cuda()
+
     def compute_loss_value_(self, i, x, y, g, epoch):
         return self.loss(self.network(x), y).mean()
 
     def update(self, i, x, y, g, epoch):
-        x, y, g = x, y, g
+        x, y, g = x.cuda(), y.cuda(), g.cuda()
         loss_value = self.compute_loss_value_(i, x, y, g, epoch)
 
         if loss_value is not None:
@@ -176,7 +178,7 @@ class ERM(torch.nn.Module):
         self.eval()
         with torch.no_grad():
             for i, x, y, g in loader:
-                predictions = self.predict(x)
+                predictions = self.predict(x.cuda())
                 if predictions.squeeze().ndim == 1:
                     predictions = (predictions > 0).cpu().eq(y).float()
                 else:
@@ -218,7 +220,7 @@ class GroupDRO(ERM):
     def __init__(self, hparams, dataset):
         super(GroupDRO, self).__init__(hparams, dataset)
         self.register_buffer(
-            "q", torch.ones(self.n_classes * self.n_groups))
+            "q", torch.ones(self.n_classes * self.n_groups).cuda())
 
     def groups_(self, y, g):
         idx_g, idx_b = [], []
@@ -250,7 +252,7 @@ class JTT(ERM):
     def __init__(self, hparams, dataset):
         super(JTT, self).__init__(hparams, dataset)
         self.register_buffer(
-            "weights", torch.ones(self.n_examples, dtype=torch.long))
+            "weights", torch.ones(self.n_examples, dtype=torch.long).cuda())
 
     def compute_loss_value_(self, i, x, y, g, epoch):
         if epoch == self.hparams["T"] + 1 and\
@@ -322,6 +324,8 @@ class TTLSA(ERM):
 
         self.lr_scheduler = None
         self.loss = torch.nn.CrossEntropyLoss(reduction="none")
+
+        self.cuda()
 
     def compute_loss_value_(self, i, x, y, g, epoch):
         return self.loss(self.predict(x, adapt=False), y).mean()
