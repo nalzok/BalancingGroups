@@ -9,7 +9,7 @@ import time
 import torch
 import submitit
 import argparse
-import numpy as np
+import lightning as L
 
 import models
 from datasets import get_loaders
@@ -47,10 +47,9 @@ def parse_args():
     return vars(parser.parse_args())
 
 
-def run_experiment(args):
+def run_experiment(fabric, args):
     start_time = time.time()
-    torch.manual_seed(args["init_seed"])
-    np.random.seed(args["init_seed"])
+    L.seed_everything(args["init_seed"])
     loaders = get_loaders(args["data_path"], args["dataset"], args["batch_size"], args["method"])
 
     sys.stdout = Tee(os.path.join(
@@ -76,14 +75,16 @@ def run_experiment(args):
         "dro": models.GroupDRO,
         "jtt": models.JTT,
         "ttlsa": models.TTLSA,
-    }[args["method"]](args, loaders["tr"])
+    }[args["method"]](fabric, args, loaders["tr"])
 
     last_epoch = 0
     best_selec_val = float('-inf')
-    if os.path.exists(checkpoint_file):
-        model.load(checkpoint_file)
-        last_epoch = model.last_epoch
-        best_selec_val = model.best_selec_val
+    # if os.path.exists(checkpoint_file):
+    #     model.load(checkpoint_file)
+    #     last_epoch = model.last_epoch
+    #     best_selec_val = model.best_selec_val
+
+    model, model.optimizer = fabric.setup(model, model.optimizer)
 
     for epoch in range(last_epoch, args["num_epochs"]):
         if epoch == args["T"] + 1 and args["method"] == "jtt":
@@ -94,12 +95,14 @@ def run_experiment(args):
                 args["method"],
                 model.weights.tolist())
 
-        for i, x, y, g in loaders["tr"]:
+        loader = fabric.setup_dataloaders(loaders["tr"])
+        for i, x, y, g in loader:
             model.update(i, x, y, g, epoch)
 
         result = {
             "args": args, "epoch": epoch, "time": time.time() - start_time}
         for loader_name, loader in loaders.items():
+            loader = fabric.setup_dataloaders(loader)
             avg_acc, group_accs = model.accuracy(loader)
             result["acc_" + loader_name] = group_accs
             result["avg_acc_" + loader_name] = avg_acc
@@ -112,10 +115,11 @@ def run_experiment(args):
         if selec_value >= best_selec_val:
             model.best_selec_val = selec_value
             best_selec_val = selec_value
-            model.save(best_checkpoint_file)
+            # model.save(best_checkpoint_file)
 
-        model.save(checkpoint_file)
-        print(json.dumps(result))
+        if fabric.is_global_zero:
+            # model.module.save(checkpoint_file)
+            print(json.dumps(result))
 
 
 if __name__ == "__main__":
@@ -132,7 +136,7 @@ if __name__ == "__main__":
 
         args["method"] = randl(
             ["erm", "suby", "subg", "rwy", "rwg", "dro", "jtt", "ttlsa"])
-        args["method"] = "ttlsa"        # override
+        args["method"] = "dro"        # override
 
         args["num_epochs"] = {
             "waterbirds": 300 + 60,
@@ -140,7 +144,7 @@ if __name__ == "__main__":
             "multinli": 5 + 2,
             "civilcomments": 5 + 2
         }[args["dataset"]]
-        args["num_epochs"] = 1          # override
+        # args["num_epochs"] = 8          # override
 
         args["eta"] = 0.1
         args["lr"] = randl([1e-5, 1e-4, 1e-3])
@@ -158,13 +162,13 @@ if __name__ == "__main__":
             "multinli": randl([1, 2]),
             "civilcomments": randl([1, 2])
         }[args["dataset"]]
+        # args["T"] = 4          # override
 
         for init_seed in range(args["num_init_seeds"]):
             args["init_seed"] = init_seed
             commands.append(dict(args))
 
     os.makedirs(args["output_dir"], exist_ok=True)
-    torch.manual_seed(0)
     commands = [commands[int(p)] for p in torch.randperm(len(commands))]
 
     if args['slurm_partition'] is not None:
@@ -177,6 +181,9 @@ if __name__ == "__main__":
             partition=args["slurm_partition"])
         executor.map_array(run_experiment, commands)
     else:
+        torch.set_float32_matmul_precision("high")
+        fabric = L.Fabric(accelerator="cuda", devices=8, strategy="ddp")
+        fabric.launch()
         for command in commands:
-            run_experiment(command)
+            run_experiment(fabric, command)
     

@@ -3,3 +3,5 @@ slurm_outputs
 debug
 *.pyc
 main_sweep/**
+MNIST/**
+lightning_logs/**

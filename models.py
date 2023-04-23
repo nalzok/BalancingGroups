@@ -70,8 +70,9 @@ def get_sgd_optim(network, lr, weight_decay):
 
 
 class ERM(torch.nn.Module):
-    def __init__(self, hparams, dataloader):
+    def __init__(self, fabric, hparams, dataloader):
         super().__init__()
+        self.fabric = fabric
         self.hparams = dict(hparams)
         dataset = dataloader.dataset
         self.n_batches = len(dataloader)
@@ -138,21 +139,18 @@ class ERM(torch.nn.Module):
                 torch.nn.BCEWithLogitsLoss(reduction="none")(x.squeeze(),
                                                              y.float())
 
-        self.cuda()
-
     def compute_loss_value_(self, i, x, y, g, epoch):
         return self.loss(self.network(x), y).mean()
 
     def update(self, i, x, y, g, epoch):
-        x, y, g = x.cuda(), y.cuda(), g.cuda()
         loss_value = self.compute_loss_value_(i, x, y, g, epoch)
 
         if loss_value is not None:
             self.optimizer.zero_grad()
-            loss_value.backward()
 
+            self.fabric.backward(loss_value)
             if self.clip_grad:
-                torch.nn.utils.clip_grad_norm_(self.network.parameters(), 1.0)
+                self.fabric.clip_gradients(self, self.optimizer, clip_val=1.0)
 
             self.optimizer.step()
 
@@ -173,19 +171,19 @@ class ERM(torch.nn.Module):
     def accuracy(self, loader):
         nb_groups = loader.dataset.nb_groups
         nb_labels = loader.dataset.nb_labels
-        corrects = torch.zeros(nb_groups * nb_labels)
-        totals = torch.zeros(nb_groups * nb_labels)
+        corrects = torch.zeros(nb_groups * nb_labels).cuda()
+        totals = torch.zeros(nb_groups * nb_labels).cuda()
         self.eval()
         with torch.no_grad():
             for i, x, y, g in loader:
-                predictions = self.predict(x.cuda())
+                predictions = self.predict(x)
                 if predictions.squeeze().ndim == 1:
-                    predictions = (predictions > 0).cpu().eq(y).float()
+                    predictions = (predictions > 0).eq(y).float()
                 else:
-                    predictions = predictions.argmax(1).cpu().eq(y).float()
+                    predictions = predictions.argmax(1).eq(y).float()
                 groups = (nb_groups * y + g)
                 for gi in groups.unique():
-                    corrects[gi] += predictions[groups == gi].sum()
+                    corrects[gi] += predictions[(groups == gi)].sum()
                     totals[gi] += (groups == gi).sum()
         corrects, totals = corrects.tolist(), totals.tolist()
         self.train()
@@ -217,10 +215,10 @@ class ERM(torch.nn.Module):
 
 
 class GroupDRO(ERM):
-    def __init__(self, hparams, dataset):
-        super(GroupDRO, self).__init__(hparams, dataset)
+    def __init__(self, fabric, hparams, dataset):
+        super(GroupDRO, self).__init__(fabric, hparams, dataset)
         self.register_buffer(
-            "q", torch.ones(self.n_classes * self.n_groups).cuda())
+            "q", torch.ones(self.n_classes * self.n_groups))
 
     def groups_(self, y, g):
         idx_g, idx_b = [], []
@@ -249,15 +247,16 @@ class GroupDRO(ERM):
 
 
 class JTT(ERM):
-    def __init__(self, hparams, dataset):
-        super(JTT, self).__init__(hparams, dataset)
+    def __init__(self, fabric, hparams, dataset):
+        super(JTT, self).__init__(fabric, hparams, dataset)
         self.register_buffer(
-            "weights", torch.ones(self.n_examples, dtype=torch.long).cuda())
+            "weights", torch.ones(self.n_examples, dtype=torch.long))
 
     def compute_loss_value_(self, i, x, y, g, epoch):
         if epoch == self.hparams["T"] + 1 and\
            self.last_epoch == self.hparams["T"]:
             self.init_model_(self.data_type, text_optim="adamw")
+            self.cuda()     # hack required to use Lightning Fabric
 
         predictions = self.network(x)
 
@@ -266,11 +265,11 @@ class JTT(ERM):
         else:
             self.eval()
             if predictions.squeeze().ndim == 1:
-                wrong_predictions = (predictions > 0).cpu().ne(y).float()
+                wrong_predictions = (predictions > 0).ne(y).float()
             else:
-                wrong_predictions = predictions.argmax(1).cpu().ne(y).float()
+                wrong_predictions = predictions.argmax(1).ne(y).float()
 
-            self.weights[i] += wrong_predictions.detach() * (self.hparams["up"] - 1)
+            self.weights[i] += torch.round(wrong_predictions * (self.hparams["up"] - 1)).long()
             self.train()
             loss_value = None
 
@@ -290,8 +289,8 @@ class JTT(ERM):
 
 
 class TTLSA(ERM):
-    def __init__(self, hparams, dataloader):
-        super().__init__(hparams, dataloader)
+    def __init__(self, fabric, hparams, dataloader):
+        super().__init__(fabric, hparams, dataloader)
         self.register_buffer("source_prior", torch.ones(self.n_classes * self.n_groups))
         self.source_prior = self._empirical_count(dataloader)
 
@@ -324,14 +323,6 @@ class TTLSA(ERM):
 
         self.lr_scheduler = None
         self.loss = torch.nn.CrossEntropyLoss(reduction="none")
-
-        self.cuda()
-
-    def compute_loss_value_(self, i, x, y, g, epoch):
-        return self.loss(self.predict(x, adapt=False), y).mean()
-
-    # def update(self, i, x, y, g, epoch):
-    #     pass
 
     def predict(self, x, adapt: bool = True):
         logits = self.network(x)
