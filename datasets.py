@@ -235,6 +235,31 @@ class CivilCommentsFine(CivilComments):
         super().__init__(data_path, split, subsample_what, duplicates, "fine")
 
 
+class ChexpertEmbedding(GroupDataset):
+    def __init__(self, data_path, split, subsample_what=None, duplicates=None):
+        root = "/home/qys/Research/test-time-label-shift/frozen/chexpert-embedding_EFFUSION_GENDER_domain1_size65536_seed2023/"
+        metadata = "/home/qys/Research/test-time-label-shift/frozen/chexpert-embedding_EFFUSION_GENDER_domain1_size65536_seed2023.csv"
+
+        super().__init__(split, root, metadata, lambda x: x, subsample_what, duplicates)
+        self.data_type = "embeddings"
+
+    def transform(self, x):
+        return self.transform_(np.load(x))
+
+
+class ColoredMNIST(GroupDataset):
+    def __init__(self, data_path, split, subsample_what=None, duplicates=None):
+        root = "/home/qys/Research/test-time-label-shift/frozen/mnist_rotFalse_noise0_domain1_seed2023/"
+        metadata = "/home/qys/Research/test-time-label-shift/frozen/mnist_rotFalse_noise0_domain1_seed2023.csv"
+
+        transform = lambda x: x.transpose(2, 0, 1)    # (H, W, C) -> (C, H, W)
+        super().__init__(split, root, metadata, transform, subsample_what, duplicates)
+        self.data_type = "images"
+
+    def transform(self, x):
+        return self.transform_(np.load(x))
+
+
 class Toy(GroupDataset):
     def __init__(self, data_path, split, subsample_what=None, duplicates=None):
         self.data_type = "toy"
@@ -316,6 +341,8 @@ def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=No
     Dataset = {
         "waterbirds": Waterbirds,
         "celeba": CelebA,
+        "chexpert-embedding": ChexpertEmbedding,
+        "coloredmnist": ColoredMNIST,
         "multinli": MultiNLI,
         "civilcomments": CivilCommentsFine
         if method in ("subg", "rwg")

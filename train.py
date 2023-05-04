@@ -84,7 +84,12 @@ def run_experiment(fabric, args):
     #     last_epoch = model.last_epoch
     #     best_selec_val = model.best_selec_val
 
-    model, model.optimizer = fabric.setup(model, model.optimizer)
+    bcts_optimizer_initial = None   # suppress warning
+    if args["method"] == "ttlsa":
+        model, model.optimizer, model.bcts_optimizer = fabric.setup(model, model.optimizer, model.bcts_optimizer)
+        bcts_optimizer_initial = model.bcts_optimizer.state_dict()
+    else:
+        model, model.optimizer = fabric.setup(model, model.optimizer)
 
     for epoch in range(last_epoch, args["num_epochs"]):
         if epoch == args["T"] + 1 and args["method"] == "jtt":
@@ -95,9 +100,21 @@ def run_experiment(fabric, args):
                 args["method"],
                 model.weights.tolist())
 
+        if args["method"] == "ttlsa":
+            with torch.no_grad():
+                model.T.zero_()
+                model.b.zero_()
+
         loader = fabric.setup_dataloaders(loaders["tr"])
         for i, x, y, g in loader:
             model.update(i, x, y, g, epoch)
+
+        if args["method"] == "ttlsa":
+            model.bcts_optimizer.load_state_dict(bcts_optimizer_initial)
+
+            loader = fabric.setup_dataloaders(loaders["va"])
+            for i, x, y, g in loader:
+                model.calibrate(i, x, y, g, epoch)
 
         result = {
             "args": args, "epoch": epoch, "time": time.time() - start_time}
@@ -131,16 +148,19 @@ if __name__ == "__main__":
         args["hparams_seed"] = hparams_seed
 
         args["dataset"] = randl(
-            ["waterbirds", "celeba", "multinli", "civilcomments"])
-        args["dataset"] = "waterbirds"  # override
+            ["waterbirds", "celeba", "chexpert-embedding", "coloredmnist", "multinli", "civilcomments"])
+        args["dataset"] = "chexpert-embedding"  # override
 
         args["method"] = randl(
             ["erm", "suby", "subg", "rwy", "rwg", "dro", "jtt", "ttlsa"])
-        args["method"] = "dro"        # override
+        args["method"] = "ttlsa"        # override
 
         args["num_epochs"] = {
             "waterbirds": 300 + 60,
             "celeba": 50 + 10,
+            "chexpert-embedding": 300 + 60,
+            "coloredmnist": 300 + 60,
+            "waterbirds": 300 + 60,
             "multinli": 5 + 2,
             "civilcomments": 5 + 2
         }[args["dataset"]]
@@ -148,17 +168,22 @@ if __name__ == "__main__":
 
         args["eta"] = 0.1
         args["lr"] = randl([1e-5, 1e-4, 1e-3])
+        args["lr"] = 1e-3               # override
         args["weight_decay"] = randl([1e-4, 1e-3, 1e-2, 1e-1, 1])
+        args["weight_decay"] = 1e-3     # override
 
-        if args["dataset"] in ["waterbirds", "celeba"]:
+        if args["dataset"] in ["waterbirds", "celeba", "chexpert-embedding", "coloredmnist"]:
             args["batch_size"] = randl([2, 4, 8, 16, 32, 64, 128])
         else:
             args["batch_size"] = randl([2, 4, 8, 16, 32])
+        args["batch_size"] = 32         # override
 
         args["up"] = randl([4, 5, 6, 20, 50, 100])
         args["T"] = {
             "waterbirds": randl([40, 50, 60]),
             "celeba": randl([1, 5, 10]),
+            "chexpert-embedding": randl([40, 50, 60]),
+            "coloredmnist": randl([40, 50, 60]),
             "multinli": randl([1, 2]),
             "civilcomments": randl([1, 2])
         }[args["dataset"]]
@@ -182,7 +207,7 @@ if __name__ == "__main__":
         executor.map_array(run_experiment, commands)
     else:
         torch.set_float32_matmul_precision("high")
-        fabric = L.Fabric(accelerator="cuda", devices=8, strategy="ddp")
+        fabric = L.Fabric(accelerator="cuda", devices=1, strategy="ddp")
         fabric.launch()
         for command in commands:
             run_experiment(fabric, command)

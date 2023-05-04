@@ -1,4 +1,5 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+from collections import OrderedDict
 
 import torch
 import torchvision
@@ -123,6 +124,20 @@ class ERM(torch.nn.Module):
                 num_training_steps=num_training_steps)
             self.loss = torch.nn.CrossEntropyLoss(reduction="none")
 
+        if data_type == "embeddings":
+            # TODO: generalize to embeddings other than CXR Foundation
+            self.network = torch.nn.Sequential(OrderedDict([
+                ("fc", torch.nn.Linear(1376, self.n_classes)),
+            ]))
+
+            self.optimizer = optimizers['sgd'](
+                self.network,
+                self.hparams['lr'],
+                self.hparams['weight_decay'])
+
+            self.lr_scheduler = None
+            self.loss = torch.nn.CrossEntropyLoss(reduction="none")
+
         elif data_type == "toy":
             gammas = (
                 self.hparams['gamma_spu'],
@@ -187,6 +202,7 @@ class ERM(torch.nn.Module):
                     totals[gi] += (groups == gi).sum()
         corrects, totals = corrects.tolist(), totals.tolist()
         self.train()
+        print("rank", self.fabric.global_rank, "corrects", corrects, "totals", totals)
         return sum(corrects) / sum(totals),\
             [c/t for c, t in zip(corrects, totals)]
 
@@ -265,11 +281,11 @@ class JTT(ERM):
         else:
             self.eval()
             if predictions.squeeze().ndim == 1:
-                wrong_predictions = (predictions > 0).ne(y).float()
+                wrong_predictions = (predictions > 0).ne(y)
             else:
-                wrong_predictions = predictions.argmax(1).ne(y).float()
+                wrong_predictions = predictions.argmax(1).ne(y)
 
-            self.weights[i] += torch.round(wrong_predictions * (self.hparams["up"] - 1)).long()
+            self.weights[i] += wrong_predictions.detach() * (self.hparams["up"] - 1)
             self.train()
             loss_value = None
 
@@ -294,7 +310,9 @@ class TTLSA(ERM):
         self.register_buffer("source_prior", torch.ones(self.n_classes * self.n_groups))
         self.source_prior = self._empirical_count(dataloader)
 
-        assert self.data_type == "images"
+        self.register_parameter("T", torch.nn.Parameter(torch.ones(1)))
+        self.register_parameter("b", torch.nn.Parameter(torch.zeros(self.n_classes * self.n_groups)))
+
         self._make_predict_joint()
 
     def _empirical_count(self, dataloader):
@@ -305,52 +323,87 @@ class TTLSA(ERM):
         bincount = torch.bincount(m, minlength=self.n_classes * self.n_groups)
         return bincount / torch.sum(bincount)
 
+    def compute_loss_value_(self, i, x, y, g, epoch):
+        return self.loss(self.network(x) + torch.log(self.source_prior), y * self.n_groups + g).mean()
+
+    def calibrate(self, i, x, y, g, epoch):
+        loss_value = self.compute_loss_value_calibrate_(i, x, y, g, epoch)
+
+        if loss_value is not None:
+            self.bcts_optimizer.zero_grad()
+
+            self.fabric.backward(loss_value)
+            if self.clip_grad:
+                self.fabric.clip_gradients(self, self.bcts_optimizer, clip_val=1.0)
+
+            self.bcts_optimizer.step()
+
+            loss_value = loss_value.item()
+
+        return loss_value
+
+    def compute_loss_value_calibrate_(self, i, x, y, g, epoch):
+        with torch.inference_mode():
+            logits = self.network(x) + torch.log(self.source_prior)
+
+        return self.loss((logits - self.b) / torch.exp(self.T), y * self.n_groups + g).mean()
+
+    def predict(self, x):
+        logits = self.network(x)
+        calibrated = (logits - self.b) / torch.exp(self.T)
+
+        # calculate the MLE for target_prior
+        prob = torch.softmax(calibrated, dim=-1)
+        target_prior = self.source_prior
+        last_objective = float("-inf")
+        while True:
+            # E step
+            target_prob = prob * target_prior
+
+            # calculate objective
+            llk = torch.log(torch.sum(target_prob, dim=-1))
+            objective = torch.sum(llk)
+            if objective <= last_objective:
+                break
+            last_objective = objective
+
+            # M step
+            target_prob /= torch.sum(target_prob, dim=-1, keepdim=True)
+            target_prior = torch.sum(target_prob, dim=0)
+            target_prior /= torch.sum(target_prior, dim=-1, keepdim=True)
+
+        target_prob = target_prob.reshape(-1, self.n_classes, self.n_groups)
+        target_prob = target_prob.sum(dim=-1)
+
+        return torch.log(target_prob)
+
     def _make_predict_joint(self):
         optimizers = {
             "adamw": get_bert_optim,
             "sgd": get_sgd_optim
         }
 
-        weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V1
-        self.network = torchvision.models.resnet.resnet50(weights=weights)
-        self.network.fc = torch.nn.Linear(
-            self.network.fc.in_features, self.n_classes * self.n_groups)
+        if self.data_type == "images":
+            self.network.fc = torch.nn.Linear(
+                self.network.fc.in_features, self.n_classes * self.n_groups)
+        elif self.data_type == "embeddings":
+            self.network = torch.nn.Sequential(OrderedDict([
+                ("fc", torch.nn.Linear(1376, self.n_classes * self.n_groups)),
+            ]))
+        else:
+            raise NotImplementedError(f"Unsupported data type {self.data_type}")
 
         self.optimizer = optimizers['sgd'](
             self.network,
             self.hparams['lr'],
             self.hparams['weight_decay'])
 
+        # TODO: maybe we should use another optimizer for BCTS
+        self.bcts_optimizer = torch.optim.SGD(
+            [self.T, self.b],
+            lr=self.hparams['lr'],
+            weight_decay=self.hparams['weight_decay'],
+            momentum=0.9)
+
         self.lr_scheduler = None
         self.loss = torch.nn.CrossEntropyLoss(reduction="none")
-
-    def predict(self, x, adapt: bool = True):
-        logits = self.network(x)
-        if not adapt:
-            return logits
-
-        with torch.inference_mode():
-            # calculate the MLE for target_prior
-            prob = torch.softmax(logits, dim=-1)
-            target_prior = self.source_prior
-            last_objective = float("-inf")
-            while True:
-                # E step
-                target_prob = prob / self.source_prior * target_prior
-
-                # calculate objective
-                llk = torch.log(torch.sum(target_prob, dim=-1))
-                objective = torch.sum(llk)
-                if objective <= last_objective:
-                    break
-                last_objective = objective
-
-                # M step
-                target_prob /= torch.sum(target_prob, dim=-1, keepdim=True)
-                target_prior = torch.sum(target_prob, dim=0)
-                target_prior /= torch.sum(target_prior, dim=-1, keepdim=True)
-
-            return torch.log(target_prob)
-
-    def calibrate(self, x):
-        raise NotImplementedError
