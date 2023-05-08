@@ -2,6 +2,7 @@
 from collections import OrderedDict
 
 import torch
+import torch.nn.functional as F
 import torchvision
 from transformers import BertForSequenceClassification, AdamW, get_scheduler
 
@@ -78,7 +79,7 @@ class ERM(torch.nn.Module):
         self.n_batches = len(dataloader)
         self.data_type = dataset.data_type
         self.n_classes = len(set(dataset.y))
-        self.n_groups = len(set(dataset.g))
+        self.n_groups = len(set([round(int(gg)) for gg in dataset.g]))
         self.n_examples = len(dataset)
         self.last_epoch = 0
         self.best_selec_val = 0
@@ -185,7 +186,7 @@ class ERM(torch.nn.Module):
     def predict(self, x):
         return self.network(x)
 
-    def accuracy(self, loader):
+    def accuracy(self, loader, predict_g=False):
         nb_groups = loader.dataset.nb_groups
         nb_labels = loader.dataset.nb_labels
         corrects = torch.zeros(nb_groups * nb_labels, dtype=torch.long)
@@ -193,11 +194,12 @@ class ERM(torch.nn.Module):
         self.eval()
         with torch.no_grad():
             for i, x, y, g in loader:
+                g = torch.round(g).int()    # harden soft labels, assuming binary labels
                 predictions = self.predict(x.cuda())
                 if predictions.squeeze().ndim == 1:
-                    predictions = (predictions > 0).cpu().eq(y)
+                    predictions = (predictions > 0).cpu().eq(g if predict_g else y)
                 else:
-                    predictions = predictions.argmax(1).cpu().eq(y)
+                    predictions = predictions.argmax(1).cpu().eq(g if predict_g else y)
                 groups = nb_groups * y + g
                 for gi in groups.unique():
                     corrects[gi] += predictions[(groups == gi)].sum()
@@ -323,7 +325,10 @@ class TTLSA(ERM):
         return bincount / torch.sum(bincount)
 
     def compute_loss_value_(self, i, x, y, g, epoch):
-        return self.loss(self.network(x) + torch.log(self.source_prior), y * self.n_groups + g).mean()
+        y = F.one_hot(y, num_classes=self.n_classes)
+        g = torch.vstack([1 - g, g]).T
+        m = torch.reshape(y[:, :, None] * g[:, None, :], (-1, self.n_groups * self.n_classes))
+        return self.loss(self.network(x) + torch.log(self.source_prior), m).mean()
 
     def calibrate(self, i, x, y, g, epoch):
         x, y, g = x.cuda(), y.cuda(), g.cuda()
@@ -343,7 +348,10 @@ class TTLSA(ERM):
         with torch.inference_mode():
             logits = self.network(x) + torch.log(self.source_prior)
 
-        return self.loss((logits - self.b) / torch.exp(self.T), y * self.n_groups + g).mean()
+        y = F.one_hot(y, num_classes=self.n_classes)
+        g = torch.vstack([1 - g, g]).T
+        m = torch.reshape(y[:, :, None] * g[:, None, :], (-1, self.n_groups * self.n_classes))
+        return self.loss((logits - self.b) / torch.exp(self.T), m).mean()
 
     def predict(self, x):
         logits = self.network(x)

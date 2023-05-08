@@ -6,7 +6,6 @@ import os
 import sys
 import json
 import time
-import datetime
 import torch
 import submitit
 import argparse
@@ -14,27 +13,7 @@ import lightning as L
 
 import models
 from datasets import get_loaders
-
-
-class Tee:
-    def __init__(self, fname, stream, mode="a+"):
-        self.stream = stream
-        self.file = open(fname, mode)
-        self.file.write(f"============ {datetime.datetime.now().isoformat()} ============\n")
-        self.file.flush()
-
-    def write(self, message):
-        self.stream.write(message)
-        self.file.write(message)
-        self.flush()
-
-    def flush(self):
-        self.stream.flush()
-        self.file.flush()
-
-
-def randl(l_):
-    return l_[torch.randperm(len(l_))[0]]
+from utils import Tee, randl
 
 
 datasets = {"waterbirds", "celeba", "chexpert-embedding", "coloredmnist", "multinli", "civilcomments"}
@@ -44,6 +23,7 @@ methods = {"erm", "suby", "subg", "rwy", "rwg", "dro", "jtt", "ttlsa"}
 def parse_args():
     parser = argparse.ArgumentParser(description='Balancing baselines')
     parser.add_argument('--dataset', type=str, choices=datasets)
+    parser.add_argument('--imputed', type=float, default=None)
     parser.add_argument('--method', type=str, choices=methods)
     parser.add_argument('--batch_size', type=int, choices=[2, 4, 8, 16, 32, 64, 128])
     parser.add_argument('--lr', type=float, choices=[1e-5, 1e-4, 1e-3])
@@ -62,10 +42,11 @@ def parse_args():
 def run_experiment(args):
     start_time = time.time()
     L.seed_everything(args["init_seed"])
-    loaders = get_loaders(args["data_path"], args["dataset"], args["batch_size"], args["method"])
+    _, loaders = get_loaders(args["data_path"], args["dataset"], args["batch_size"], args["method"], imputed=args["imputed"])
 
-    stem = "{}_{}_batch{}_lr{}_decay{}_seed_{}_{}".format(
+    stem = "{}_impute{}_{}_batch{}_lr{}_decay{}_seed_{}_{}".format(
         args["dataset"],
+        args["imputed"],
         args["method"],
         args["batch_size"],
         args["lr"],
@@ -154,8 +135,10 @@ if __name__ == "__main__":
             "civilcomments": 5 + 2
         }[args["dataset"]]
 
+        # Group DRO
         args["eta"] = 0.1
 
+        # JTT
         args["up"] = randl([4, 5, 6, 20, 50, 100])
         args["T"] = {
             "waterbirds": randl([40, 50, 60]),

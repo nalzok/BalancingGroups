@@ -1,0 +1,152 @@
+# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
+#!/usr/bin/env python
+
+import os
+import sys
+import json
+import time
+import torch
+import argparse
+import numpy as np
+import pandas as pd
+import lightning as L
+from pathlib import Path
+
+import models
+from datasets import get_loaders
+from utils import Tee
+
+
+datasets = {"waterbirds", "celeba", "chexpert-embedding", "coloredmnist", "multinli", "civilcomments"}
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Balancing baselines')
+    parser.add_argument('--dataset', type=str, choices=datasets)
+    parser.add_argument('--missing', type=float, choices=[0.1, 0.25, 0.5, 0.75, 0.9])
+    parser.add_argument('--output_dir', type=str, default='outputs')
+    parser.add_argument('--slurm_output_dir', type=str, default='slurm_outputs')
+    parser.add_argument('--data_path', type=str, default='data')
+    parser.add_argument('--slurm_partition', type=str, default=None)
+    parser.add_argument('--max_time', type=int, default=3*24*60)
+    parser.add_argument('--num_hparams_seeds', type=int, default=20)
+    parser.add_argument('--num_init_seeds', type=int, default=5)
+    parser.add_argument('--selector', type=str, default='min_acc_va')
+    return vars(parser.parse_args())
+
+
+def run_experiment(args):
+    start_time = time.time()
+    L.seed_everything(args["init_seed"])
+    dataset, loaders = get_loaders(args["data_path"], args["dataset"], args["batch_size"], "erm", None, missing=args["missing"])
+
+    stem = "{}_missing{}_batch{}_lr{}_decay{}_seed_{}_{}".format(
+        args["dataset"],
+        args["missing"],
+        args["batch_size"],
+        args["lr"],
+        args["weight_decay"],
+        args["hparams_seed"],
+        args["init_seed"],
+    )
+    sys.stdout = Tee(os.path.join(args["output_dir"], f"{stem}.out"), sys.stdout)
+    sys.stderr = Tee(os.path.join(args["output_dir"], f"{stem}.err"), sys.stderr)
+
+    model = models.ERM(args, loaders["tr"])
+
+    for epoch in range(args["num_epochs"]):
+        for i, x, y, g in loaders["tr"]:
+            # HACK: swapping y and g because we want to impute g
+            model.update(i, x, g, y, epoch)
+
+        result = {"args": args, "epoch": epoch, "time": time.time() - start_time}
+        for loader_name, loader in loaders.items():
+            avg_acc, group_accs = model.accuracy(loader, predict_g=True)
+            result["acc_" + loader_name] = group_accs
+            result["avg_acc_" + loader_name] = avg_acc
+
+        print(json.dumps(result))
+
+    metadata = []
+    for i, x, y, g in loaders["te"]:
+        with torch.inference_mode():
+            ghat = torch.softmax(model.predict(x.cuda()), -1)
+
+        for ii, gghat in zip(i.tolist(), ghat[:, 1].tolist()):
+            metadata.append((dataset.index[ii], gghat))
+
+    metadata = pd.DataFrame.from_records(metadata, index="id", columns=["id", "a"])
+    metadata_imputed = dataset.metadata_full.join(metadata, rsuffix="_impute")
+    mask = np.isnan(metadata_imputed["a_impute"])
+    metadata_imputed.loc[mask, "a_impute"] = metadata_imputed["a"][mask]
+    metadata_imputed = metadata_imputed.rename(columns={"a_impute": "a", "a": "a_orig"})
+
+    metadata_path = Path(dataset.metadata_path)
+    metadata_path = metadata_path.with_stem(f"{metadata_path.stem}_impute{args['missing']}")
+    metadata_imputed.to_csv(metadata_path)
+
+    # compare = metadata_imputed["a"] == (metadata_imputed["a_impute"] >= 0.5)
+    # compare = compare[~np.isnan(metadata_imputed["a_impute"])]
+    # print(result["avg_acc_te"], np.mean(compare))
+
+
+if __name__ == "__main__":
+    args = parse_args()
+
+    commands = []
+    for hparams_seed in range(args["num_hparams_seeds"]):
+        torch.manual_seed(hparams_seed)
+        args["hparams_seed"] = hparams_seed
+
+        args["num_epochs"] = {
+            "celeba": 37,
+            "civilcomments": 4,
+            "multinli": 5,
+            "waterbirds": 208,
+
+            "chexpert-embedding": 208,
+            "coloredmnist": 208,
+        }[args["dataset"]]
+
+        args["batch_size"] = {
+            "celeba": 128,
+            "civilcomments": 8,
+            "multinli": 8,
+            "waterbirds": 4,
+
+            "chexpert-embedding": 4,
+            "coloredmnist": 4,
+        }[args["dataset"]]
+
+        args["lr"] = {
+            "celeba": 1e-3,
+            "civilcomments": 1e-4,
+            "multinli": 1e-4,
+            "waterbirds": 1e-4,
+
+            "chexpert-embedding": 1e-4,
+            "coloredmnist": 1e-4,
+        }[args["dataset"]]
+
+        args["weight_decay"] = {
+            "celeba": 1e-1,
+            "civilcomments": 1e-4,
+            "multinli": 1e-4,
+            "waterbirds": 1e-3,
+
+            "chexpert-embedding": 1e-3,
+            "coloredmnist": 1e-3,
+        }[args["dataset"]]
+
+        for init_seed in range(args["num_init_seeds"]):
+            args["init_seed"] = init_seed
+            commands.append(dict(args))
+
+    os.makedirs(args["output_dir"], exist_ok=True)
+    commands = [commands[int(p)] for p in torch.randperm(len(commands))]
+
+    torch.set_float32_matmul_precision("high")
+    for command in commands:
+        run_experiment(command)
+    

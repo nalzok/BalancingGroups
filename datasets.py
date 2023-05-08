@@ -2,25 +2,32 @@
 
 import os
 import torch
+from pathlib import Path
 import pandas as pd
 import numpy as np
 
 from PIL import Image
 from torchvision import transforms
 from transformers import BertTokenizer
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from sklearn.datasets import make_blobs
 import pandas as pd
 
 
-class GroupDataset:
+class GroupDataset(Dataset):
     def __init__(
-        self, split, root, metadata, transform, subsample_what=None, duplicates=None
+        self, split, root, metadata, transform, subsample_what=None, duplicates=None, imputed=None,
     ):
+        metadata = Path(metadata)
+        if imputed is not None:
+            metadata = metadata.with_stem(f"{metadata.stem}_impute{imputed}")
+
         self.transform_ = transform
-        df = pd.read_csv(metadata)
+        self.metadata_path = metadata
+        df = self.metadata_full = pd.read_csv(metadata, index_col="id")
         df = df[df["split"] == ({"tr": 0, "va": 1, "te": 2}[split])]
 
+        self.index = df.index.tolist()
         self.i = list(range(len(df)))
         self.x = df["filename"].astype(str).map(lambda x: os.path.join(root, x)).tolist()
         self.y = df["y"].tolist()
@@ -37,18 +44,18 @@ class GroupDataset:
     def count_groups(self):
         self.wg, self.wy = [], []
 
-        self.nb_groups = len(set(self.g))
+        self.nb_groups = len(set([int(round(gg)) for gg in self.g]))
         self.nb_labels = len(set(self.y))
         self.group_sizes = [0] * self.nb_groups * self.nb_labels
         self.class_sizes = [0] * self.nb_labels
 
         for i in self.i:
-            self.group_sizes[self.nb_groups * self.y[i] + self.g[i]] += 1
+            self.group_sizes[self.nb_groups * self.y[i] + int(round(self.g[i]))] += 1
             self.class_sizes[self.y[i]] += 1
 
         for i in self.i:
             self.wg.append(
-                len(self) / self.group_sizes[self.nb_groups * self.y[i] + self.g[i]]
+                len(self) / self.group_sizes[self.nb_groups * self.y[i] + int(round(self.g[i]))]
             )
             self.wy.append(len(self) / self.class_sizes[self.y[i]])
 
@@ -68,9 +75,9 @@ class GroupDataset:
 
             if (
                 subsample_what == "groups"
-                and counts_g[self.nb_groups * int(y) + int(g)] < min_size
+                and counts_g[self.nb_groups * int(y) + int(round(g))] < min_size
             ) or (subsample_what == "classes" and counts_y[int(y)] < min_size):
-                counts_g[self.nb_groups * int(y) + int(g)] += 1
+                counts_g[self.nb_groups * int(y) + int(round(g))] += 1
                 counts_y[int(y)] += 1
                 new_i.append(self.i[p])
 
@@ -88,7 +95,7 @@ class GroupDataset:
         j = self.i[i]
         x = self.transform(self.x[j])
         y = torch.tensor(self.y[j], dtype=torch.long)
-        g = torch.tensor(self.g[j], dtype=torch.long)
+        g = torch.tensor(self.g[j])     # g could be soft labels (when doing imputation)
         return torch.tensor(i, dtype=torch.long), x, y, g
 
     def __len__(self):
@@ -96,7 +103,7 @@ class GroupDataset:
 
 
 class Waterbirds(GroupDataset):
-    def __init__(self, data_path, split, subsample_what=None, duplicates=None):
+    def __init__(self, data_path, split, subsample_what=None, duplicates=None, imputed=None):
         root = os.path.join(data_path, "waterbirds/waterbird_complete95_forest2water2/")
         metadata = os.path.join(data_path,"metadata_waterbirds.csv")
 
@@ -113,7 +120,7 @@ class Waterbirds(GroupDataset):
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
             ]
         )
-        super().__init__(split, root, metadata, transform, subsample_what, duplicates)
+        super().__init__(split, root, metadata, transform, subsample_what, duplicates, imputed)
         self.data_type = "images"
 
     def transform(self, x):
@@ -121,7 +128,7 @@ class Waterbirds(GroupDataset):
 
 
 class CelebA(GroupDataset):
-    def __init__(self, data_path, split, subsample_what=None, duplicates=None):
+    def __init__(self, data_path, split, subsample_what=None, duplicates=None, imputed=None):
         root = os.path.join(data_path, "celeba/img_align_celeba/")
         metadata = os.path.join(data_path,"metadata_celeba.csv")
 
@@ -133,7 +140,7 @@ class CelebA(GroupDataset):
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
             ]
         )
-        super().__init__(split, root, metadata, transform, subsample_what, duplicates)
+        super().__init__(split, root, metadata, transform, subsample_what, duplicates, imputed)
         self.data_type = "images"
 
     def transform(self, x):
@@ -141,7 +148,7 @@ class CelebA(GroupDataset):
 
 
 class MultiNLI(GroupDataset):
-    def __init__(self, data_path, split, subsample_what=None, duplicates=None):
+    def __init__(self, data_path, split, subsample_what=None, duplicates=None, imputed=None):
         root = os.path.join(data_path, "multinli", "glue_data", "MNLI")
         metadata = os.path.join(data_path, "metadata_multinli.csv")
 
@@ -174,7 +181,7 @@ class MultiNLI(GroupDataset):
         self.data_type = "text"
 
         super().__init__(
-            split, "", metadata, self.transform, subsample_what, duplicates
+            split, "", metadata, self.transform, subsample_what, duplicates, imputed
         )
 
     def transform(self, i):
@@ -188,6 +195,7 @@ class CivilComments(GroupDataset):
         split,
         subsample_what=None,
         duplicates=None,
+        imputed=None,
         granularity="coarse",
     ):
         metadata = os.path.join(data_path,"metadata_civilcomments_{}.csv".format(granularity))
@@ -203,7 +211,7 @@ class CivilComments(GroupDataset):
         self.data_type = "text"
 
         super().__init__(
-            split, "", metadata, self.transform, subsample_what, duplicates
+            split, "", metadata, self.transform, subsample_what, duplicates, imputed
         )
 
     def transform(self, idx):
@@ -231,16 +239,16 @@ class CivilComments(GroupDataset):
 
 
 class CivilCommentsFine(CivilComments):
-    def __init__(self, data_path, split, subsample_what=None, duplicates=None):
-        super().__init__(data_path, split, subsample_what, duplicates, "fine")
+    def __init__(self, data_path, split, subsample_what=None, duplicates=None, imputed=None):
+        super().__init__(data_path, split, subsample_what, duplicates, imputed, "fine")
 
 
 class ChexpertEmbedding(GroupDataset):
-    def __init__(self, data_path, split, subsample_what=None, duplicates=None):
+    def __init__(self, data_path, split, subsample_what=None, duplicates=None, imputed=None):
         root = "/home/qys/Research/test-time-label-shift/frozen/chexpert-embedding_EFFUSION_GENDER_domain1_size65536_seed2023/"
         metadata = "/home/qys/Research/test-time-label-shift/frozen/chexpert-embedding_EFFUSION_GENDER_domain1_size65536_seed2023.csv"
 
-        super().__init__(split, root, metadata, lambda x: x, subsample_what, duplicates)
+        super().__init__(split, root, metadata, lambda x: x, subsample_what, duplicates, imputed)
         self.data_type = "embeddings"
 
     def transform(self, x):
@@ -248,12 +256,12 @@ class ChexpertEmbedding(GroupDataset):
 
 
 class ColoredMNIST(GroupDataset):
-    def __init__(self, data_path, split, subsample_what=None, duplicates=None):
+    def __init__(self, data_path, split, subsample_what=None, duplicates=None, imputed=None):
         root = "/home/qys/Research/test-time-label-shift/frozen/mnist_rotFalse_noise0_domain1_seed2023/"
         metadata = "/home/qys/Research/test-time-label-shift/frozen/mnist_rotFalse_noise0_domain1_seed2023.csv"
 
         transform = lambda x: x.transpose(2, 0, 1)    # (H, W, C) -> (C, H, W)
-        super().__init__(split, root, metadata, transform, subsample_what, duplicates)
+        super().__init__(split, root, metadata, transform, subsample_what, duplicates, imputed)
         self.data_type = "images"
 
     def transform(self, x):
@@ -337,7 +345,10 @@ class Toy(GroupDataset):
         return i, X, y, g
 
 
-def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=None):
+def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=None, missing=None, imputed=None):
+    # `missing` is for doing imputation, whereas `imputed` is for reading imputed labels
+    assert not (missing is not None and imputed is not None)
+
     Dataset = {
         "waterbirds": Waterbirds,
         "celeba": CelebA,
@@ -350,9 +361,37 @@ def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=No
         "toy": Toy,
     }[dataset_name]
 
+    if missing is not None:
+        assert method == "erm" and duplicates is None
+
+        dataset = Dataset(data_path, "tr", None, None)
+        perm = torch.randperm(len(dataset))
+        cutoff = int(len(dataset) * missing)
+
+        sampler_tr = WeightedRandomSampler(perm >= cutoff, len(dataset) - cutoff, replacement=False)
+        sampler_te = WeightedRandomSampler(perm < cutoff, cutoff, replacement=False)
+
+        loaders = {
+            "tr": DataLoader(
+                dataset,
+                batch_size=batch_size,
+                sampler=sampler_tr,
+                num_workers=12,
+                pin_memory=True
+            ),
+            "te": DataLoader(
+                dataset,
+                batch_size=128,
+                sampler=sampler_te,
+                num_workers=12,
+                pin_memory=True
+            )
+        }
+        return dataset, loaders
+
     def dl(dataset, bs, shuffle, weights):
         if weights is not None:
-            sampler = torch.utils.data.WeightedRandomSampler(weights, len(weights))
+            sampler = WeightedRandomSampler(weights, len(weights))
         else:
             sampler = None
         return DataLoader(
@@ -360,7 +399,7 @@ def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=No
             batch_size=bs,
             shuffle=shuffle,
             sampler=sampler,
-            num_workers=4,
+            num_workers=12,
             pin_memory=True,
         )
 
@@ -371,7 +410,7 @@ def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=No
     else:
         subsample_what = None
 
-    dataset_tr = Dataset(data_path, "tr", subsample_what, duplicates)
+    dataset_tr = Dataset(data_path, "tr", subsample_what, duplicates, imputed=imputed)
 
     if method == "rwg" or method == "dro":
         weights_tr = dataset_tr.wg
@@ -380,8 +419,9 @@ def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=No
     else:
         weights_tr = None
 
-    return {
+    loaders = {
         "tr": dl(dataset_tr, batch_size, weights_tr is None, weights_tr),
-        "va": dl(Dataset(data_path, "va", None), 128, False, None),
-        "te": dl(Dataset(data_path, "te", None), 128, False, None),
+        "va": dl(Dataset(data_path, "va", None, imputed=imputed), 128, False, None),
+        "te": dl(Dataset(data_path, "te", None, imputed=imputed), 128, False, None),
     }
+    return dataset_tr, loaders
