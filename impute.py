@@ -15,7 +15,7 @@ from pathlib import Path
 
 import models
 from datasets import get_loaders
-from utils import Tee
+from utils import Tee, chosen_hparams_best
 
 
 datasets = {"waterbirds", "celeba", "chexpert-embedding", "coloredmnist", "multinli", "civilcomments"}
@@ -24,7 +24,7 @@ datasets = {"waterbirds", "celeba", "chexpert-embedding", "coloredmnist", "multi
 def parse_args():
     parser = argparse.ArgumentParser(description='Balancing baselines')
     parser.add_argument('--dataset', type=str, choices=datasets)
-    parser.add_argument('--missing', type=float, choices=[0.1, 0.25, 0.5, 0.75, 0.9])
+    parser.add_argument('--missing', type=float, required=True)
     parser.add_argument('--output_dir', type=str, default='outputs')
     parser.add_argument('--slurm_output_dir', type=str, default='slurm_outputs')
     parser.add_argument('--data_path', type=str, default='data')
@@ -86,10 +86,6 @@ def run_experiment(args):
     metadata_path = metadata_path.with_stem(f"{metadata_path.stem}_impute{args['missing']}")
     metadata_imputed.to_csv(metadata_path)
 
-    # compare = metadata_imputed["a"] == (metadata_imputed["a_impute"] >= 0.5)
-    # compare = compare[~np.isnan(metadata_imputed["a_impute"])]
-    # print(result["avg_acc_te"], np.mean(compare))
-
 
 if __name__ == "__main__":
     args = parse_args()
@@ -99,45 +95,12 @@ if __name__ == "__main__":
         torch.manual_seed(hparams_seed)
         args["hparams_seed"] = hparams_seed
 
-        args["num_epochs"] = {
-            "celeba": 37,
-            "civilcomments": 4,
-            "multinli": 5,
-            "waterbirds": 208,
-
-            "chexpert-embedding": 208,
-            "coloredmnist": 208,
-        }[args["dataset"]]
-
-        args["batch_size"] = {
-            "celeba": 128,
-            "civilcomments": 8,
-            "multinli": 8,
-            "waterbirds": 4,
-
-            "chexpert-embedding": 4,
-            "coloredmnist": 4,
-        }[args["dataset"]]
-
-        args["lr"] = {
-            "celeba": 1e-3,
-            "civilcomments": 1e-4,
-            "multinli": 1e-4,
-            "waterbirds": 1e-4,
-
-            "chexpert-embedding": 1e-4,
-            "coloredmnist": 1e-4,
-        }[args["dataset"]]
-
-        args["weight_decay"] = {
-            "celeba": 1e-1,
-            "civilcomments": 1e-4,
-            "multinli": 1e-4,
-            "waterbirds": 1e-3,
-
-            "chexpert-embedding": 1e-3,
-            "coloredmnist": 1e-3,
-        }[args["dataset"]]
+        args["method"] = "erm"
+        log_lr, log_wd, epoch, batch_size = chosen_hparams_best[args["dataset"]][args["method"]]
+        args["lr"] = 10**log_lr
+        args["weight_decay"] = 10**log_wd
+        args["num_epochs"] = int(round(epoch))
+        args["batch_size"] = batch_size
 
         for init_seed in range(args["num_init_seeds"]):
             args["init_seed"] = init_seed

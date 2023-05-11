@@ -95,7 +95,7 @@ class GroupDataset(Dataset):
         j = self.i[i]
         x = self.transform(self.x[j])
         y = torch.tensor(self.y[j], dtype=torch.long)
-        g = torch.tensor(self.g[j])     # g could be soft labels (when doing imputation)
+        g = torch.tensor(self.g[j], dtype=torch.float)  # g could be soft labels when doing imputation
         return torch.tensor(i, dtype=torch.long), x, y, g
 
     def __len__(self):
@@ -216,6 +216,9 @@ class CivilComments(GroupDataset):
 
     def transform(self, idx):
         text = self.text_array[int(idx)]
+        if isinstance(text, float) and np.isnan(text):
+            # text == float('nan') when civilcomments_(coarse|fine).csv contains an missing entry
+            text = ""
 
         tokens = self.tokenizer(
             text,
@@ -376,14 +379,14 @@ def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=No
                 dataset,
                 batch_size=batch_size,
                 sampler=sampler_tr,
-                num_workers=12,
+                num_workers=24,
                 pin_memory=True
             ),
             "te": DataLoader(
                 dataset,
                 batch_size=128,
                 sampler=sampler_te,
-                num_workers=12,
+                num_workers=24,
                 pin_memory=True
             )
         }
@@ -399,7 +402,7 @@ def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=No
             batch_size=bs,
             shuffle=shuffle,
             sampler=sampler,
-            num_workers=12,
+            num_workers=24,
             pin_memory=True,
         )
 

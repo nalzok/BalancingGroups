@@ -92,11 +92,16 @@ class ERM(torch.nn.Module):
             "sgd": get_sgd_optim
         }
 
+        if self.__class__.__name__ == "TTLSA":
+            out_features = self.n_classes * self.n_groups
+        else:
+            out_features = self.n_classes
+
         if data_type == "images":
             weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V1
             self.network = torchvision.models.resnet.resnet50(weights=weights)
             self.network.fc = torch.nn.Linear(
-                self.network.fc.in_features, self.n_classes)
+                self.network.fc.in_features, out_features)
 
             self.optimizer = optimizers['sgd'](
                 self.network,
@@ -109,7 +114,7 @@ class ERM(torch.nn.Module):
         elif data_type == "text":
             self.network = BertWrapper(
                 BertForSequenceClassification.from_pretrained(
-                    'bert-base-uncased', num_labels=self.n_classes))
+                    'bert-base-uncased', num_labels=out_features))
             self.network.zero_grad()
             self.optimizer = optimizers[text_optim](
                 self.network,
@@ -125,9 +130,9 @@ class ERM(torch.nn.Module):
             self.loss = torch.nn.CrossEntropyLoss(reduction="none")
 
         if data_type == "embeddings":
-            # TODO: generalize to embeddings other than CXR Foundation
+            # TODO: generalize to embedding dimensions other than CXR Foundation
             self.network = torch.nn.Sequential(OrderedDict([
-                ("fc", torch.nn.Linear(1376, self.n_classes)),
+                ("fc", torch.nn.Linear(1376, out_features)),
             ]))
 
             self.optimizer = optimizers['sgd'](
@@ -157,7 +162,9 @@ class ERM(torch.nn.Module):
         self.cuda()
 
     def compute_loss_value_(self, i, x, y, g, epoch):
-        return self.loss(self.network(x), y).mean()
+        # Normally y.dtype is torch.int64, and .long() is a no-op.
+        # However, during imputation y is actually g, in which case we must call .long() since dtype.y is torch.float32.
+        return self.loss(self.network(x), y.long()).mean()
 
     def update(self, i, x, y, g, epoch):
         x, y, g = x.cuda(), y.cuda(), g.cuda()
@@ -208,7 +215,7 @@ class ERM(torch.nn.Module):
         self.train()
         print("corrects", corrects, "totals", totals)
         return sum(corrects) / sum(totals),\
-            [c/t for c, t in zip(corrects, totals)]
+            [c/t if t > 0 else float("nan") for c, t in zip(corrects, totals)]
 
     def load(self, fname):
         dicts = torch.load(fname)
@@ -308,13 +315,17 @@ class JTT(ERM):
 class TTLSA(ERM):
     def __init__(self, hparams, dataloader):
         super().__init__(hparams, dataloader)
-        self.register_buffer("source_prior", torch.ones(self.n_classes * self.n_groups).cuda())
-        self.source_prior = self._empirical_count(dataloader)
+        self.register_buffer("source_prior", self._empirical_count(dataloader).cuda())
 
-        self.register_parameter("T", torch.nn.Parameter(torch.ones(1)))
-        self.register_parameter("b", torch.nn.Parameter(torch.zeros(self.n_classes * self.n_groups)))
+        self.register_parameter("T", torch.nn.Parameter(torch.ones(1).cuda()))
+        self.register_parameter("b", torch.nn.Parameter(torch.zeros(self.n_classes * self.n_groups).cuda()))
 
-        self._make_predict_joint()
+        # FIXME: maybe we should use another learning rate for BCTS?
+        self.bcts_optimizer = torch.optim.SGD(
+            [self.T, self.b],
+            lr=self.hparams['lr'],
+            weight_decay=self.hparams['weight_decay'],
+            momentum=0.9)
 
     def _empirical_count(self, dataloader):
         dataset = dataloader.dataset
@@ -381,36 +392,3 @@ class TTLSA(ERM):
         target_prob = target_prob.sum(dim=-1)
 
         return torch.log(target_prob)
-
-    def _make_predict_joint(self):
-        optimizers = {
-            "adamw": get_bert_optim,
-            "sgd": get_sgd_optim
-        }
-
-        if self.data_type == "images":
-            self.network.fc = torch.nn.Linear(
-                self.network.fc.in_features, self.n_classes * self.n_groups)
-        elif self.data_type == "embeddings":
-            self.network = torch.nn.Sequential(OrderedDict([
-                ("fc", torch.nn.Linear(1376, self.n_classes * self.n_groups)),
-            ]))
-        else:
-            raise NotImplementedError(f"Unsupported data type {self.data_type}")
-
-        self.optimizer = optimizers['sgd'](
-            self.network,
-            self.hparams['lr'],
-            self.hparams['weight_decay'])
-
-        # TODO: maybe we should use another optimizer for BCTS
-        self.bcts_optimizer = torch.optim.SGD(
-            [self.T, self.b],
-            lr=self.hparams['lr'],
-            weight_decay=self.hparams['weight_decay'],
-            momentum=0.9)
-
-        self.lr_scheduler = None
-        self.loss = torch.nn.CrossEntropyLoss(reduction="none")
-
-        self.cuda()

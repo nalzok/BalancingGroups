@@ -13,7 +13,7 @@ import lightning as L
 
 import models
 from datasets import get_loaders
-from utils import Tee, randl
+from utils import Tee, randl, chosen_hparams_best
 
 
 datasets = {"waterbirds", "celeba", "chexpert-embedding", "coloredmnist", "multinli", "civilcomments"}
@@ -25,9 +25,6 @@ def parse_args():
     parser.add_argument('--dataset', type=str, choices=datasets)
     parser.add_argument('--imputed', type=float, default=None)
     parser.add_argument('--method', type=str, choices=methods)
-    parser.add_argument('--batch_size', type=int, choices=[2, 4, 8, 16, 32, 64, 128])
-    parser.add_argument('--lr', type=float, choices=[1e-5, 1e-4, 1e-3])
-    parser.add_argument('--weight_decay', type=float, choices=[1e-4, 1e-3, 1e-2, 1e-1, 1])
     parser.add_argument('--output_dir', type=str, default='outputs')
     parser.add_argument('--slurm_output_dir', type=str, default='slurm_outputs')
     parser.add_argument('--data_path', type=str, default='data')
@@ -134,6 +131,11 @@ if __name__ == "__main__":
             "multinli": 5 + 2,
             "civilcomments": 5 + 2
         }[args["dataset"]]
+
+        log_lr, log_wd, epoch, batch_size = chosen_hparams_best[args["dataset"]][args["method"]]
+        args["lr"] = 10**log_lr
+        args["weight_decay"] = 10**log_wd
+        args["batch_size"] = batch_size
 
         # Group DRO
         args["eta"] = 0.1
