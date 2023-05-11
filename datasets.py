@@ -379,14 +379,14 @@ def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=No
                 dataset,
                 batch_size=batch_size,
                 sampler=sampler_tr,
-                num_workers=24,
+                num_workers=12,
                 pin_memory=True
             ),
             "te": DataLoader(
                 dataset,
                 batch_size=128,
                 sampler=sampler_te,
-                num_workers=24,
+                num_workers=12,
                 pin_memory=True
             )
         }
@@ -402,7 +402,7 @@ def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=No
             batch_size=bs,
             shuffle=shuffle,
             sampler=sampler,
-            num_workers=24,
+            num_workers=12,
             pin_memory=True,
         )
 

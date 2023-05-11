@@ -31,10 +31,10 @@ dependencies:
   - brotlipy=0.7.0=py310h5764c6d_1005
   - bzip2=1.0.8=h7f98852_4
   - c-ares=1.18.1=h7f98852_0
-  - ca-certificates=2022.12.7=ha878542_0
+  - ca-certificates=2023.5.7=hbcca054_0
   - cachecontrol=0.12.11=pyhd8ed1ab_1
   - cachy=0.3.0=pyhd8ed1ab_1
-  - certifi=2022.12.7=pyhd8ed1ab_0
+  - certifi=2023.5.7=pyhd8ed1ab_0
   - cffi=1.15.1=py310h255011f_3
   - charset-normalizer=2.1.1=pyhd8ed1ab_0
   - cleo=0.8.1=pyhd8ed1ab_2
@@ -147,6 +147,7 @@ dependencies:
   - libthrift=0.15.0=hcc01f38_0
   - libtiff=4.5.0=h6a678d5_2
   - libunistring=0.9.10=h7f98852_0
+  - libunwind=1.6.2=h9c3ff4c_0
   - libuuid=1.41.5=h5eee18b_0
   - libwebp=1.2.4=h1daa5a0_1
   - libwebp-base=1.2.4=h5eee18b_1
@@ -206,6 +207,7 @@ dependencies:
   - protobuf=3.20.3=py310heca2aa9_1
   - psutil=5.9.5=py310h1fa729e_0
   - ptyprocess=0.7.0=pyhd3deb0d_0
+  - py-spy=0.3.14=h87a5ac0_0
   - pyarrow=11.0.0=py310h468efa6_0
   - pycparser=2.21=pyhd8ed1ab_0
   - pydantic=1.10.7=py310h1fa729e_0

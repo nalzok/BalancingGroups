@@ -216,4 +216,5 @@ dependencies:
   - qtwebkit
   - transformers
   - lightning
+  - py-spy
 prefix: /home/qys/miniconda3/envs/ttlsa
