@@ -30,8 +30,8 @@ def parse_args():
     parser.add_argument('--data_path', type=str, default='data')
     parser.add_argument('--slurm_partition', type=str, default=None)
     parser.add_argument('--max_time', type=int, default=3*24*60)
-    parser.add_argument('--num_hparams_seeds', type=int, default=20)
-    parser.add_argument('--num_init_seeds', type=int, default=5)
+    parser.add_argument('--hparams_seed', type=int, required=True)
+    parser.add_argument('--init_seed', type=int, required=True)
     parser.add_argument('--selector', type=str, default='min_acc_va')
     return vars(parser.parse_args())
 
@@ -62,8 +62,10 @@ def run_experiment(args):
 
         result = {"args": args, "epoch": epoch, "time": time.time() - start_time}
         for loader_name, loader in loaders.items():
-            avg_acc, group_accs = model.accuracy(loader, predict_g=True)
+            avg_acc, corrects, totals, group_accs = model.accuracy(loader, predict_g=True)
             result["acc_" + loader_name] = group_accs
+            result["corrects_" + loader_name] = corrects
+            result["totals_" + loader_name] = totals
             result["avg_acc_" + loader_name] = avg_acc
 
         print(json.dumps(result))
@@ -91,20 +93,16 @@ if __name__ == "__main__":
     args = parse_args()
 
     commands = []
-    for hparams_seed in range(args["num_hparams_seeds"]):
-        torch.manual_seed(hparams_seed)
-        args["hparams_seed"] = hparams_seed
+    torch.manual_seed(args["hparams_seed"])
 
-        args["method"] = "erm"
-        log_lr, log_wd, epoch, batch_size = chosen_hparams_best[args["dataset"]][args["method"]]
-        args["lr"] = 10**log_lr
-        args["weight_decay"] = 10**log_wd
-        args["num_epochs"] = int(round(epoch))
-        args["batch_size"] = batch_size
+    args["method"] = "erm"
+    log_lr, log_wd, epoch, batch_size = chosen_hparams_best[args["dataset"]][args["method"]]
+    args["lr"] = 10**log_lr
+    args["weight_decay"] = 10**log_wd
+    args["num_epochs"] = int(round(epoch))
+    args["batch_size"] = batch_size
 
-        for init_seed in range(args["num_init_seeds"]):
-            args["init_seed"] = init_seed
-            commands.append(dict(args))
+    commands.append(dict(args))
 
     os.makedirs(args["output_dir"], exist_ok=True)
     commands = [commands[int(p)] for p in torch.randperm(len(commands))]

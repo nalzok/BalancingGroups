@@ -213,8 +213,7 @@ class ERM(torch.nn.Module):
                     totals[gi] += (groups == gi).sum()
         corrects, totals = corrects.tolist(), totals.tolist()
         self.train()
-        print("corrects", corrects, "totals", totals)
-        return sum(corrects) / sum(totals),\
+        return sum(corrects) / sum(totals), corrects, totals, \
             [c/t if t > 0 else float("nan") for c, t in zip(corrects, totals)]
 
     def load(self, fname):

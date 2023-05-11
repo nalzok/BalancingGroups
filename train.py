@@ -30,8 +30,8 @@ def parse_args():
     parser.add_argument('--data_path', type=str, default='data')
     parser.add_argument('--slurm_partition', type=str, default=None)
     parser.add_argument('--max_time', type=int, default=3*24*60)
-    parser.add_argument('--num_hparams_seeds', type=int, default=20)
-    parser.add_argument('--num_init_seeds', type=int, default=5)
+    parser.add_argument('--hparams_seed', type=int, required=True)
+    parser.add_argument('--init_seed', type=int, required=True)
     parser.add_argument('--selector', type=str, default='min_acc_va')
     return vars(parser.parse_args())
 
@@ -98,8 +98,10 @@ def run_experiment(args):
         result = {
             "args": args, "epoch": epoch, "time": time.time() - start_time}
         for loader_name, loader in loaders.items():
-            avg_acc, group_accs = model.accuracy(loader)
+            avg_acc, corrects, totals, group_accs = model.accuracy(loader)
             result["acc_" + loader_name] = group_accs
+            result["corrects_" + loader_name] = corrects
+            result["totals_" + loader_name] = totals
             result["avg_acc_" + loader_name] = avg_acc
 
         selec_value = {
@@ -118,42 +120,38 @@ if __name__ == "__main__":
     args = parse_args()
 
     commands = []
-    for hparams_seed in range(args["num_hparams_seeds"]):
-        torch.manual_seed(hparams_seed)
-        args["hparams_seed"] = hparams_seed
+    torch.manual_seed(args["hparams_seed"])
 
-        args["num_epochs"] = {
-            "waterbirds": 300 + 60,
-            "celeba": 50 + 10,
-            "chexpert-embedding": 300 + 60,
-            "coloredmnist": 300 + 60,
-            "waterbirds": 300 + 60,
-            "multinli": 5 + 2,
-            "civilcomments": 5 + 2
-        }[args["dataset"]]
+    args["num_epochs"] = {
+        "waterbirds": 300 + 60,
+        "celeba": 50 + 10,
+        "chexpert-embedding": 300 + 60,
+        "coloredmnist": 300 + 60,
+        "waterbirds": 300 + 60,
+        "multinli": 5 + 2,
+        "civilcomments": 5 + 2
+    }[args["dataset"]]
 
-        log_lr, log_wd, epoch, batch_size = chosen_hparams_best[args["dataset"]][args["method"]]
-        args["lr"] = 10**log_lr
-        args["weight_decay"] = 10**log_wd
-        args["batch_size"] = batch_size
+    log_lr, log_wd, epoch, batch_size = chosen_hparams_best[args["dataset"]][args["method"]]
+    args["lr"] = 10**log_lr
+    args["weight_decay"] = 10**log_wd
+    args["batch_size"] = batch_size
 
-        # Group DRO
-        args["eta"] = 0.1
+    # Group DRO
+    args["eta"] = 0.1
 
-        # JTT
-        args["up"] = randl([4, 5, 6, 20, 50, 100])
-        args["T"] = {
-            "waterbirds": randl([40, 50, 60]),
-            "celeba": randl([1, 5, 10]),
-            "chexpert-embedding": randl([40, 50, 60]),
-            "coloredmnist": randl([40, 50, 60]),
-            "multinli": randl([1, 2]),
-            "civilcomments": randl([1, 2])
-        }[args["dataset"]]
+    # JTT
+    args["up"] = randl([4, 5, 6, 20, 50, 100])
+    args["T"] = {
+        "waterbirds": randl([40, 50, 60]),
+        "celeba": randl([1, 5, 10]),
+        "chexpert-embedding": randl([40, 50, 60]),
+        "coloredmnist": randl([40, 50, 60]),
+        "multinli": randl([1, 2]),
+        "civilcomments": randl([1, 2])
+    }[args["dataset"]]
 
-        for init_seed in range(args["num_init_seeds"]):
-            args["init_seed"] = init_seed
-            commands.append(dict(args))
+    commands.append(dict(args))
 
     os.makedirs(args["output_dir"], exist_ok=True)
     commands = [commands[int(p)] for p in torch.randperm(len(commands))]

@@ -4,6 +4,7 @@ debug
 *.pyc
 main_sweep/**
 impute_sweep/**
+paper_sweep/**
 MNIST/**
 lightning_logs/**
 joblogs/**
