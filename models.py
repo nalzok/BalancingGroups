@@ -111,6 +111,30 @@ class ERM(torch.nn.Module):
             self.lr_scheduler = None
             self.loss = torch.nn.CrossEntropyLoss(reduction="none")
 
+        elif data_type == "mnist":
+            self.network = torch.nn.Sequential(
+                torch.nn.Conv2d(3, 6, kernel_size=5, padding=2),
+                torch.nn.Sigmoid(),
+                torch.nn.AvgPool2d(kernel_size=2, stride=2),
+                torch.nn.Conv2d(6, 16, kernel_size=5),
+                torch.nn.Sigmoid(),
+                torch.nn.AvgPool2d(kernel_size=2, stride=2),
+                torch.nn.Flatten(),
+                torch.nn.Linear(400, 120),
+                torch.nn.Sigmoid(),
+                torch.nn.Linear(120, 84),
+                torch.nn.Sigmoid(),
+                torch.nn.Linear(84, out_features)
+            )
+
+            self.optimizer = optimizers['sgd'](
+                self.network,
+                self.hparams['lr'],
+                self.hparams['weight_decay'])
+
+            self.lr_scheduler = None
+            self.loss = torch.nn.CrossEntropyLoss(reduction="none")
+
         elif data_type == "text":
             self.network = BertWrapper(
                 BertForSequenceClassification.from_pretrained(

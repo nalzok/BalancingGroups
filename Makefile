@@ -10,8 +10,8 @@ smoke-impute:
 		--missing 0.9999 \
 		--data_path data \
 		--output_dir impute_sweep \
-		--hparams_seed 0 \
-		--init_seed 0
+		--hparams_seed 2023 \
+		--init_seed 2023
 
 
 smoke-train:
@@ -21,8 +21,8 @@ smoke-train:
 		--method ttlsa \
 		--data_path data \
 		--output_dir main_sweep \
-		--hparams_seed 0 \
-		--init_seed 0
+		--hparams_seed 2023 \
+		--init_seed 2023
 
 
 train:
@@ -37,10 +37,10 @@ train:
 		--method {3} \
 		--data_path data \
 		--output_dir paper_sweep \
-		--hparams_seed 0 \
+		--hparams_seed 2023 \
 		--init_seed {1} \
 		::: 2023 2024 2025 2026 \
-		::: waterbirds celeba chexpert-embedding coloredmnist multinli civilcomments \
+		::: waterbirds celeba multinli civilcomments \
 		::: erm ttlsa
 
 
@@ -56,8 +56,8 @@ impute:
 		--missing {1} \
 		--data_path data \
 		--output_dir impute_sweep \
-		--hparams_seed 0 \
-		--init_seed 0 \
+		--hparams_seed 2023 \
+		--init_seed 2023 \
 		::: ${MISSING_SWEEP} \
 		::: civilcomments multinli
 
@@ -75,8 +75,8 @@ train-impute:
 		--method {3} \
 		--data_path data \
 		--output_dir main_sweep \
-		--hparams_seed 0 \
-		--init_seed 0 \
+		--hparams_seed 2023 \
+		--init_seed 2023 \
 		::: ${MISSING_SWEEP} \
 		::: civilcomments multinli \
 		::: ttlsa

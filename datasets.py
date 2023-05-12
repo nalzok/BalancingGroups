@@ -263,9 +263,12 @@ class ColoredMNIST(GroupDataset):
         root = "/home/qys/Research/test-time-label-shift/frozen/mnist_rotFalse_noise0_domain1_seed2023/"
         metadata = "/home/qys/Research/test-time-label-shift/frozen/mnist_rotFalse_noise0_domain1_seed2023.csv"
 
-        transform = lambda x: x.transpose(2, 0, 1)    # (H, W, C) -> (C, H, W)
+        def transform(x):
+            x = x.transpose(2, 0, 1)    # (H, W, C) -> (C, H, W)
+            return x
+
         super().__init__(split, root, metadata, transform, subsample_what, duplicates, imputed)
-        self.data_type = "images"
+        self.data_type = "mnist"
 
     def transform(self, x):
         return self.transform_(np.load(x))
