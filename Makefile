@@ -28,20 +28,21 @@ smoke-train:
 train:
 	parallel \
 		--eta \
-		--jobs 8 \
+		--jobs $$(nvidia-smi -L | wc -l) \
 		--joblog joblogs/train.txt \
 		--rpl '{%0} 1 $$_ = $$job->slot() - 1' \
 		env CUDA_VISIBLE_DEVICES={%0} \
 		/home/qys/miniconda3/envs/ttlsa/bin/python3.10 train.py \
-		--dataset {2} \
-		--method {3} \
+		--dataset {1} \
+		--method {2} \
 		--data_path data \
 		--output_dir paper_sweep \
-		--hparams_seed 2023 \
-		--init_seed {1} \
-		::: 2023 2024 2025 2026 \
-		::: waterbirds celeba multinli civilcomments \
-		::: erm ttlsa
+		--hparams_seed {3} \
+		--init_seed {4} \
+		::: coloredmnist chexpert-embedding \
+		::: erm ttlsa \
+		::: 5 4 3 \
+		::: 4 3 2 1 0
 
 
 impute:

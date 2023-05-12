@@ -38,9 +38,12 @@ def parse_args():
 
 def run_experiment(args):
     start_time = time.time()
-    L.seed_everything(args["init_seed"])
+    L.seed_everything(42)
     _, loaders = get_loaders(args["data_path"], args["dataset"], args["batch_size"], args["method"], imputed=args["imputed"])
 
+    args["batch_size"] = 128
+    args["lr"] = 10**-args["hparams_seed"]
+    args["weight_decay"] = 10**-args["init_seed"]
     stem = "{}_impute{}_{}_batch{}_lr{}_decay{}_seed_{}_{}".format(
         args["dataset"],
         args["imputed"],
