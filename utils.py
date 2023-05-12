@@ -63,7 +63,28 @@ chosen_hparams_best = {
             }
         }
 
-chosen_hparams_best["chexpert-embedding"] = chosen_hparams_best["coloredmnist"] = chosen_hparams_best["waterbirds"]
+
+chosen_hparams_best["coloredmnist"] = {
+        "erm": (-1.0, -1.0, 39.8, 128),
+        "jtt": (-3.0, -2.0, 31.0, 32),
+        "rwy": (-4.0, -2.0, 18.8, 2),
+        "suby": (-3.0, -2.0, 41.4, 128),
+        "rwg": (-5.0, -1.0, 6.2, 32),
+        "subg": (-4.0, -1.0, 8.2, 8),
+        "dro": (-5.0, -4.0, 15.4, 64),
+        }
+
+
+chosen_hparams_best["chexpert-embedding"] = {
+        "erm": (-4.0, -1.0, 39.8, 128),
+        "jtt": (-3.0, -2.0, 31.0, 32),
+        "rwy": (-4.0, -2.0, 18.8, 2),
+        "suby": (-3.0, -2.0, 41.4, 128),
+        "rwg": (-5.0, -1.0, 6.2, 32),
+        "subg": (-4.0, -1.0, 8.2, 8),
+        "dro": (-5.0, -4.0, 15.4, 64),
+        }
+
 
 for dataset in chosen_hparams_best:
     chosen_hparams_best[dataset]["ttlsa"] = chosen_hparams_best[dataset]["erm"]

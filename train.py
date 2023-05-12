@@ -65,14 +65,11 @@ def run_experiment(args):
         "ttlsa": models.TTLSA,
     }[args["method"]](args, loaders["tr"])
 
-    last_epoch = 0
-    best_selec_val = float('-inf')
-
     bcts_optimizer_initial = None   # suppress warning
     if args["method"] == "ttlsa":
         bcts_optimizer_initial = model.bcts_optimizer.state_dict()
 
-    for epoch in range(last_epoch, args["num_epochs"]):
+    for epoch in range(args["num_epochs"]):
         if epoch == args["T"] + 1 and args["method"] == "jtt":
             loaders = get_loaders(
                 args["data_path"],
@@ -103,15 +100,6 @@ def run_experiment(args):
             result["corrects_" + loader_name] = corrects
             result["totals_" + loader_name] = totals
             result["avg_acc_" + loader_name] = avg_acc
-
-        selec_value = {
-            "min_acc_va": min(result["acc_va"]),
-            "avg_acc_va": result["avg_acc_va"],
-        }[args["selector"]]
-
-        if selec_value >= best_selec_val:
-            model.best_selec_val = selec_value
-            best_selec_val = selec_value
 
         print(json.dumps(result))
 
