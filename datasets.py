@@ -19,13 +19,18 @@ class GroupDataset(Dataset):
         self, split, root, metadata, transform, subsample_what=None, duplicates=None, imputed=None,
     ):
         metadata = Path(metadata)
-        if imputed is not None:
+        if imputed is not None and imputed != 0:
             metadata = metadata.with_stem(f"{metadata.stem}_impute{imputed}")
 
         self.transform_ = transform
         self.metadata_path = metadata
         df = self.metadata_full = pd.read_csv(metadata, index_col="id")
-        df = df[df["split"] == ({"tr": 0, "va": 1, "te": 2}[split])]
+        if isinstance(split, int):
+            df = df[df["split"] == split]
+        elif isinstance(split, str):
+            df = df[df["split"] == ({"tr": 0, "va": 1, "te": 2}[split])]
+        else:
+            raise ValueError(f"Unknown split '{split}'")
 
         self.index = df.index.tolist()
         self.i = list(range(len(df)))
@@ -248,8 +253,8 @@ class CivilCommentsFine(CivilComments):
 
 class ChexpertEmbedding(GroupDataset):
     def __init__(self, data_path, split, subsample_what=None, duplicates=None, imputed=None):
-        root = "/home/qys/Research/test-time-label-shift/frozen/chexpert-embedding_EFFUSION_GENDER_domain1_size65536_seed2023/"
-        metadata = "/home/qys/Research/test-time-label-shift/frozen/chexpert-embedding_EFFUSION_GENDER_domain1_size65536_seed2023.csv"
+        root = os.path.join(data_path, "frozen/chexpert-embedding_EFFUSION_GENDER_domain1_size65536_seed2023/")
+        metadata = os.path.join(data_path, "frozen/chexpert-embedding_EFFUSION_GENDER_domain1_size65536_seed2023.csv")
 
         super().__init__(split, root, metadata, lambda x: x, subsample_what, duplicates, imputed)
         self.data_type = "embeddings"
@@ -260,8 +265,8 @@ class ChexpertEmbedding(GroupDataset):
 
 class ColoredMNIST(GroupDataset):
     def __init__(self, data_path, split, subsample_what=None, duplicates=None, imputed=None):
-        root = "/home/qys/Research/test-time-label-shift/frozen/mnist_rotFalse_noise0_domain1_seed2023/"
-        metadata = "/home/qys/Research/test-time-label-shift/frozen/mnist_rotFalse_noise0_domain1_seed2023.csv"
+        root = os.path.join(data_path, "frozen/mnist_rotFalse_noise0_domain1_seed2023/")
+        metadata = os.path.join(data_path, "frozen/mnist_rotFalse_noise0_domain1_seed2023.csv")
 
         def transform(x):
             x = x.transpose(2, 0, 1)    # (H, W, C) -> (C, H, W)
@@ -430,6 +435,12 @@ def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=No
     loaders = {
         "tr": dl(dataset_tr, batch_size, weights_tr is None, weights_tr),
         "va": dl(Dataset(data_path, "va", None, imputed=imputed), 128, False, None),
-        "te": dl(Dataset(data_path, "te", None, imputed=imputed), 128, False, None),
     }
+
+    if dataset_name in { "chexpert-embedding", "coloredmnist" }:
+        for i in range(2, 23):
+            loaders[f"te-{i-2}"] = dl(Dataset(data_path, i, None, imputed=imputed), 128, False, None)
+    else:
+        loaders["te"] = dl(Dataset(data_path, "te", None, imputed=imputed), 128, False, None)
+
     return dataset_tr, loaders

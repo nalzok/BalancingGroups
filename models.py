@@ -153,11 +153,9 @@ class ERM(torch.nn.Module):
                 num_training_steps=num_training_steps)
             self.loss = torch.nn.CrossEntropyLoss(reduction="none")
 
-        if data_type == "embeddings":
+        elif data_type == "embeddings":
             # TODO: generalize to embedding dimensions other than CXR Foundation
-            self.network = torch.nn.Sequential(OrderedDict([
-                ("fc", torch.nn.Linear(1376, out_features)),
-            ]))
+            self.network = torch.nn.Linear(1376, out_features)
 
             self.optimizer = optimizers['sgd'](
                 self.network,
@@ -182,6 +180,9 @@ class ERM(torch.nn.Module):
             self.loss = lambda x, y:\
                 torch.nn.BCEWithLogitsLoss(reduction="none")(x.squeeze(),
                                                              y.float())
+
+        else:
+            raise ValueError(f"Unknown data_type = '{data_type}'")
 
         self.cuda()
 
@@ -223,7 +224,7 @@ class ERM(torch.nn.Module):
         corrects = torch.zeros(nb_groups * nb_labels, dtype=torch.long)
         totals = torch.zeros(nb_groups * nb_labels, dtype=torch.long)
         self.eval()
-        with torch.no_grad():
+        with torch.inference_mode():
             for i, x, y, g in loader:
                 g = torch.round(g).int()    # harden soft labels, assuming binary labels
                 predictions = self.predict(x.cuda())

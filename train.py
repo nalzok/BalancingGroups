@@ -38,12 +38,9 @@ def parse_args():
 
 def run_experiment(args):
     start_time = time.time()
-    L.seed_everything(42)
+    L.seed_everything(args["init_seed"])
     _, loaders = get_loaders(args["data_path"], args["dataset"], args["batch_size"], args["method"], imputed=args["imputed"])
 
-    args["batch_size"] = 128
-    args["lr"] = 10**-args["hparams_seed"]
-    args["weight_decay"] = 10**-args["init_seed"]
     stem = "{}_impute{}_{}_batch{}_lr{}_decay{}_seed_{}_{}".format(
         args["dataset"],
         args["imputed"],
@@ -82,12 +79,13 @@ def run_experiment(args):
                 model.weights.tolist())
 
         if args["method"] == "ttlsa":
-            with torch.no_grad():
+            with torch.inference_mode():
                 model.T.zero_()
                 model.b.zero_()
 
+        train_loss = 0
         for i, x, y, g in loaders["tr"]:
-            model.update(i, x, y, g, epoch)
+            train_loss += model.update(i, x, y, g, epoch)
 
         if args["method"] == "ttlsa":
             model.bcts_optimizer.load_state_dict(bcts_optimizer_initial)
@@ -96,8 +94,14 @@ def run_experiment(args):
                 model.calibrate(i, x, y, g, epoch)
 
         result = {
-            "args": args, "epoch": epoch, "time": time.time() - start_time}
+            "args": args,
+            "epoch": epoch,
+            "time": time.time() - start_time,
+            "loss_tr": train_loss
+        }
         for loader_name, loader in loaders.items():
+            if loader_name == "tr":
+                continue
             avg_acc, corrects, totals, group_accs = model.accuracy(loader)
             result["acc_" + loader_name] = group_accs
             result["corrects_" + loader_name] = corrects

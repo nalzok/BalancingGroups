@@ -16,8 +16,7 @@ smoke-impute:
 
 smoke-train:
 	/home/qys/miniconda3/envs/ttlsa/bin/python3.10 train.py \
-		--dataset multinli \
-		--imputed 0.75 \
+		--dataset coloredmnist \
 		--method ttlsa \
 		--data_path data \
 		--output_dir main_sweep \
