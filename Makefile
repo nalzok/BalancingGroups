@@ -32,17 +32,16 @@ train:
 		--rpl '{%0} 1 $$_ = $$job->slot() - 1' \
 		env CUDA_VISIBLE_DEVICES={%0} \
 		/home/qys/miniconda3/envs/ttlsa/bin/python3.10 train.py \
-		--dataset {2} \
-		--method {3} \
-		--imputed {4} \
+		--dataset {1} \
+		--method {2} \
 		--data_path data \
 		--output_dir paper_sweep \
-		--hparams_seed 2023 \
-		--init_seed {1} \
-		::: 2023 \
-		::: coloredmnist \
-		::: erm ttlsa \
-		::: 0 ${MISSING_SWEEP}
+		--hparams_seed {3} \
+		--init_seed {4} \
+		::: chexpert-embedding \
+		::: dro subg \
+		::: 5 4 3 \
+		::: 4 3 2 1 0
 
 
 impute:

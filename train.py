@@ -37,8 +37,12 @@ def parse_args():
 
 
 def run_experiment(args):
+    L.seed_everything(42)
     start_time = time.time()
-    L.seed_everything(args["init_seed"])
+
+    args["batch_size"] = 128
+    args["lr"] = 10**-args["hparams_seed"]
+    args["weight_decay"] = 10**-args["init_seed"]
     _, loaders = get_loaders(args["data_path"], args["dataset"], args["batch_size"], args["method"], imputed=args["imputed"])
 
     stem = "{}_impute{}_{}_batch{}_lr{}_decay{}_seed_{}_{}".format(
@@ -127,10 +131,10 @@ if __name__ == "__main__":
         "civilcomments": 5 + 2
     }[args["dataset"]]
 
-    log_lr, log_wd, _, batch_size = chosen_hparams_best[args["dataset"]][args["method"]]
-    args["lr"] = 10**log_lr
-    args["weight_decay"] = 10**log_wd
-    args["batch_size"] = batch_size
+    # log_lr, log_wd, _, batch_size = chosen_hparams_best[args["dataset"]][args["method"]]
+    # args["lr"] = 10**log_lr
+    # args["weight_decay"] = 10**log_wd
+    # args["batch_size"] = batch_size
 
     # Group DRO
     args["eta"] = 0.1

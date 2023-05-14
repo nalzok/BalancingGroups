@@ -248,7 +248,7 @@ class GroupDRO(ERM):
 
     def groups_(self, y, g):
         idx_g, idx_b = [], []
-        all_g = y * self.n_groups + g
+        all_g = torch.round(y * self.n_groups + g).int()
 
         for g in all_g.unique():
             idx_g.append(g)
