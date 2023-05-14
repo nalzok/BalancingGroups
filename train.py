@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument('--max_time', type=int, default=3*24*60)
     parser.add_argument('--hparams_seed', type=int, required=True)
     parser.add_argument('--init_seed', type=int, required=True)
-    parser.add_argument('--selector', type=str, default='min_acc_va')
+    parser.add_argument('--selector', type=int, required=True)
     return vars(parser.parse_args())
 
 
@@ -40,7 +40,7 @@ def run_experiment(args):
     L.seed_everything(42)
     start_time = time.time()
 
-    args["batch_size"] = 128
+    args["batch_size"] = args["selector"]
     args["lr"] = 10**-args["hparams_seed"]
     args["weight_decay"] = 10**-args["init_seed"]
     _, loaders = get_loaders(args["data_path"], args["dataset"], args["batch_size"], args["method"], imputed=args["imputed"])

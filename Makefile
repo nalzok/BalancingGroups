@@ -35,11 +35,13 @@ train:
 		--dataset {1} \
 		--method {2} \
 		--data_path data \
-		--output_dir paper_sweep \
-		--hparams_seed {3} \
-		--init_seed {4} \
-		::: coloredmnist \
+		--output_dir hyper_tune_chexpert \
+		--hparams_seed {4} \
+		--init_seed {5} \
+		--selector {3} \
+		::: chexpert-embedding \
 		::: erm dro subg \
+		::: 2 4 8 16 32 64 128 \
 		::: 5 4 3 \
 		::: 4 3 2 1 0
 
