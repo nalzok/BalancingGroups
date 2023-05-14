@@ -127,7 +127,7 @@ if __name__ == "__main__":
         "civilcomments": 5 + 2
     }[args["dataset"]]
 
-    log_lr, log_wd, epoch, batch_size = chosen_hparams_best[args["dataset"]][args["method"]]
+    log_lr, log_wd, _, batch_size = chosen_hparams_best[args["dataset"]][args["method"]]
     args["lr"] = 10**log_lr
     args["weight_decay"] = 10**log_wd
     args["batch_size"] = batch_size

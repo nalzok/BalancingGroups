@@ -64,25 +64,12 @@ chosen_hparams_best = {
         }
 
 
-chosen_hparams_best["coloredmnist"] = {
-        "erm": (-4.0, -3.0, 257.4, 4),
-        "jtt": (-3.0, -4.0, 289.4, 4),
-        "rwy": (-5.0, -1.0, 109.4, 4),
-        "suby": (-5.0, -2.0, 319.8, 2),
-        "rwg": (-5.0, 0.0, 3.0, 2),
-        "subg": (-4.0, -2.0, 175.2, 4),
-        "dro": (-5.0, 0.0, 6.0, 4),
-        }
+chosen_hparams_best["coloredmnist"] = chosen_hparams_best["waterbirds"]
 
 
+# we only need this for imputation
 chosen_hparams_best["chexpert-embedding"] = {
-        "erm": (-4.0, -3.0, 257.4, 4),
-        "jtt": (-3.0, -4.0, 289.4, 4),
-        "rwy": (-5.0, -1.0, 109.4, 4),
-        "suby": (-5.0, -2.0, 319.8, 2),
-        "rwg": (-5.0, 0.0, 3.0, 2),
-        "subg": (-4.0, -2.0, 175.2, 4),
-        "dro": (-5.0, 0.0, 6.0, 4),
+        "erm": (-5.0, -3.0, 173, 128),
         }
 
 

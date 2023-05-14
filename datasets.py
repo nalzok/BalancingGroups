@@ -273,7 +273,7 @@ class ColoredMNIST(GroupDataset):
             return x
 
         super().__init__(split, root, metadata, transform, subsample_what, duplicates, imputed)
-        self.data_type = "mnist"
+        self.data_type = "images"
 
     def transform(self, x):
         return self.transform_(np.load(x))
