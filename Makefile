@@ -38,8 +38,8 @@ train:
 		--output_dir paper_sweep \
 		--hparams_seed {3} \
 		--init_seed {4} \
-		::: chexpert-embedding \
-		::: dro subg \
+		::: coloredmnist \
+		::: erm dro subg \
 		::: 5 4 3 \
 		::: 4 3 2 1 0
 
