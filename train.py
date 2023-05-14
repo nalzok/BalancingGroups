@@ -104,13 +104,12 @@ def run_experiment(args):
             "loss_tr": train_loss
         }
         for loader_name, loader in loaders.items():
-            if loader_name == "tr":
-                continue
-            avg_acc, corrects, totals, group_accs = model.accuracy(loader)
-            result["acc_" + loader_name] = group_accs
-            result["corrects_" + loader_name] = corrects
-            result["totals_" + loader_name] = totals
-            result["avg_acc_" + loader_name] = avg_acc
+            if loader_name == "va":
+                avg_acc, corrects, totals, group_accs = model.accuracy(loader)
+                result["acc_" + loader_name] = group_accs
+                result["corrects_" + loader_name] = corrects
+                result["totals_" + loader_name] = totals
+                result["avg_acc_" + loader_name] = avg_acc
 
         print(json.dumps(result))
 
