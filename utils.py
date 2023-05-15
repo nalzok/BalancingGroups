@@ -71,11 +71,10 @@ chosen_hparams_best["coloredmnist"] = {
         }
 
 
-# we only need this for imputation
 chosen_hparams_best["chexpert-embedding"] = {
-        "erm": (None, None, None, None),
-        "subg": (None, None, None, None),
-        "dro": (None, None, None, None),
+        "erm": (-5, -2, 8, 128),
+        "subg": (-4, -3, 321, 128),
+        "dro": (-4, -3, 270, 128),
         }
 
 
