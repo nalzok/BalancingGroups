@@ -97,7 +97,7 @@ class ERM(torch.nn.Module):
         else:
             out_features = self.n_classes
 
-        if data_type == "images":
+        if data_type in { "images", "mnist" }:
             weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V1
             self.network = torchvision.models.resnet.resnet50(weights=weights)
             self.network.fc = torch.nn.Linear(

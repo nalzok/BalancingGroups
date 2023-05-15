@@ -32,17 +32,17 @@ def parse_args():
     parser.add_argument('--max_time', type=int, default=3*24*60)
     parser.add_argument('--hparams_seed', type=int, required=True)
     parser.add_argument('--init_seed', type=int, required=True)
-    parser.add_argument('--selector', type=int, required=True)
+    parser.add_argument('--selector', type=str, default='min_acc_va')
+    parser.add_argument('--lr', type=float, default=None)
+    parser.add_argument('--weight_decay', type=float, default=None)
+    parser.add_argument('--batch_size', type=int, default=None)
     return vars(parser.parse_args())
 
 
 def run_experiment(args):
-    L.seed_everything(42)
+    L.seed_everything(args["init_seed"])
     start_time = time.time()
 
-    args["batch_size"] = args["selector"]
-    args["lr"] = 10**-args["hparams_seed"]
-    args["weight_decay"] = 10**-args["init_seed"]
     _, loaders = get_loaders(args["data_path"], args["dataset"], args["batch_size"], args["method"], imputed=args["imputed"])
 
     stem = "{}_impute{}_{}_batch{}_lr{}_decay{}_seed_{}_{}".format(
@@ -103,8 +103,13 @@ def run_experiment(args):
             "time": time.time() - start_time,
             "loss_tr": train_loss
         }
+
+        if args["fast"]:
+            necessary = { "va" }
+        else:
+            necessary = { name for name in loaders.keys() if name != "tr" }
         for loader_name, loader in loaders.items():
-            if loader_name == "va":
+            if loader_name in necessary:
                 avg_acc, corrects, totals, group_accs = model.accuracy(loader)
                 result["acc_" + loader_name] = group_accs
                 result["corrects_" + loader_name] = corrects
@@ -130,10 +135,18 @@ if __name__ == "__main__":
         "civilcomments": 5 + 2
     }[args["dataset"]]
 
-    # log_lr, log_wd, _, batch_size = chosen_hparams_best[args["dataset"]][args["method"]]
-    # args["lr"] = 10**log_lr
-    # args["weight_decay"] = 10**log_wd
-    # args["batch_size"] = batch_size
+    # don't calculate test accuracy when tuning hyperparameters
+    args["fast"] = args["batch_size"] is not None \
+            or args["lr"] is not None \
+            or args["weight_decay"] is not None
+
+    log_lr, log_wd, _, batch_size = chosen_hparams_best[args["dataset"]][args["method"]]
+    if args["batch_size"] is None:
+        args["batch_size"] = batch_size
+    if args["lr"] is None:
+        args["lr"] = 10**log_lr
+    if args["weight_decay"] is None:
+        args["weight_decay"] = 10**log_wd
 
     # Group DRO
     args["eta"] = 0.1

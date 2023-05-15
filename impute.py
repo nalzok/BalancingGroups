@@ -37,8 +37,8 @@ def parse_args():
 
 
 def run_experiment(args):
-    start_time = time.time()
     L.seed_everything(args["init_seed"])
+    start_time = time.time()
     dataset, loaders = get_loaders(args["data_path"], args["dataset"], args["batch_size"], "erm", None, missing=args["missing"])
 
     stem = "{}_missing{}_batch{}_lr{}_decay{}_seed_{}_{}".format(

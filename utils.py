@@ -64,12 +64,18 @@ chosen_hparams_best = {
         }
 
 
-chosen_hparams_best["coloredmnist"] = chosen_hparams_best["waterbirds"]
+chosen_hparams_best["coloredmnist"] = {
+        "erm": (None, None, None, None),
+        "subg": (None, None, None, None),
+        "dro": (None, None, None, None),
+        }
 
 
 # we only need this for imputation
 chosen_hparams_best["chexpert-embedding"] = {
-        "erm": (-5.0, -3.0, 173, 128),
+        "erm": (None, None, None, None),
+        "subg": (None, None, None, None),
+        "dro": (None, None, None, None),
         }
 
 

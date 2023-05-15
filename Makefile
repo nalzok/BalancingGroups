@@ -24,26 +24,52 @@ smoke-train:
 		--init_seed 2023
 
 
-train:
+hyper_cmnist:
 	parallel \
 		--eta \
 		--jobs $$(nvidia-smi -L | wc -l) \
-		--joblog joblogs/train.txt \
+		--joblog joblogs/$@.txt \
 		--rpl '{%0} 1 $$_ = $$job->slot() - 1' \
 		env CUDA_VISIBLE_DEVICES={%0} \
 		/home/qys/miniconda3/envs/ttlsa/bin/python3.10 train.py \
 		--dataset {1} \
 		--method {2} \
 		--data_path data \
-		--output_dir hyper_tune_chexpert \
-		--hparams_seed {4} \
-		--init_seed {5} \
-		--selector {3} \
+		--output_dir $@ \
+		--lr {3} \
+		--weight_decay {4} \
+		--batch_size {5} \
+		--hparams_seed 2023 \
+		--init_seed 2023 \
+		::: coloredmnist \
+		::: erm dro subg \
+		::: 1e-5 1e-4 1e-3 \
+		::: 1e-4 1e-3 1e-2 1e-1 1e-0 \
+		::: 128
+
+
+hyper_chexpert:
+	parallel \
+		--eta \
+		--jobs $$(nvidia-smi -L | wc -l) \
+		--joblog joblogs/$@.txt \
+		--rpl '{%0} 1 $$_ = $$job->slot() - 1' \
+		env CUDA_VISIBLE_DEVICES={%0} \
+		/home/qys/miniconda3/envs/ttlsa/bin/python3.10 train.py \
+		--dataset {1} \
+		--method {2} \
+		--data_path data \
+		--output_dir $@ \
+		--lr {3} \
+		--weight_decay {4} \
+		--batch_size {5} \
+		--hparams_seed 2023 \
+		--init_seed 2023 \
 		::: chexpert-embedding \
 		::: erm dro subg \
-		::: 2 4 8 16 32 64 128 \
-		::: 5 4 3 \
-		::: 4 3 2 1 0
+		::: 1e-5 1e-4 1e-3 \
+		::: 1e-4 1e-3 1e-2 1e-1 1e-0 \
+		::: 128
 
 
 impute:

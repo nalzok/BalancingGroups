@@ -25,12 +25,9 @@ class GroupDataset(Dataset):
         self.transform_ = transform
         self.metadata_path = metadata
         df = self.metadata_full = pd.read_csv(metadata, index_col="id")
-        if isinstance(split, int):
-            df = df[df["split"] == split]
-        elif isinstance(split, str):
-            df = df[df["split"] == ({"tr": 0, "va": 1, "te": 2}[split])]
-        else:
-            raise ValueError(f"Unknown split '{split}'")
+        if isinstance(split, str):
+            split = {"tr": 0, "va": 1, "te": 2}[split]
+        df = df[df["split"] == split]
 
         self.index = df.index.tolist()
         self.i = list(range(len(df)))
@@ -273,7 +270,7 @@ class ColoredMNIST(GroupDataset):
             return x
 
         super().__init__(split, root, metadata, transform, subsample_what, duplicates, imputed)
-        self.data_type = "images"
+        self.data_type = "mnist"
 
     def transform(self, x):
         return self.transform_(np.load(x))
