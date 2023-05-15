@@ -4,6 +4,7 @@ import glob
 import re
 import json
 from collections import defaultdict
+import statistics
 import pprint
 
 
@@ -49,12 +50,12 @@ def aggregate(args):
             corrects_va = record["corrects_va"]
             totals_va = record["totals_va"]
 
-            if args.selector == "min":
+            if args.selector1 == "min":
                 acc_va = min(1 if t == 0 else c/t for c, t in zip(corrects_va, totals_va))
-            elif args.selector == "avg":
+            elif args.selector1 == "avg":
                 acc_va = sum(corrects_va) / sum(totals_va)
             else:
-                raise ValueError(f"Unknown selector '{args.selector}'")
+                raise ValueError(f"Unknown selector '{args.selector1}'")
 
             if acc_va > optimal_acc_va:
                 optimal_epoch = record["epoch"]
@@ -75,21 +76,18 @@ def aggregate(args):
     for key, by_key in agg.items():
         aggregated = {}
         for loader_name, results in by_key.items():
-            corrects, totals = results[0]
-            all_corrects = [0 for _ in corrects]
-            all_totals = [0 for _ in totals]
-            for corrects, totals_ in results:
-                assert totals_ == totals
-                for group_id in range(len(totals)):
-                    all_corrects[group_id] += corrects[group_id]
-                    all_totals[group_id] += totals[group_id]
+            acc_list = []
+            for corrects, totals in results:
+                if args.selector2 == "min":
+                    acc = min(1 if t == 0 else c/t for c, t in zip(corrects, totals))
+                elif args.selector2 == "avg":
+                    acc = sum(corrects) / sum(totals)
+                else:
+                    raise ValueError(f"Unknown selector '{args.selector2}'")
+                acc_list.append(acc)
 
-            if args.selector == "min":
-                aggregated[loader_name] = min(1 if t == 0 else c/t for c, t in zip(all_corrects, all_totals))
-            elif args.selector == "avg":
-                aggregated[loader_name] = sum(all_corrects) / sum(all_totals)
-            else:
-                raise ValueError(f"Unknown selector '{args.selector}'")
+            acc_mean, acc_std = statistics.mean(acc_list), statistics.stdev(acc_list)
+            aggregated[loader_name] = f"{acc_mean*100:.2f} \\pm {acc_std*100:.2f}"
 
         everything[key] = aggregated
 
@@ -99,6 +97,7 @@ def aggregate(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Aggregate results')
     parser.add_argument('--path', type=str, required=True)
-    parser.add_argument('--selector', type=str, choices=['min', 'avg'])
+    parser.add_argument('--selector1', type=str, choices=['min', 'avg'])
+    parser.add_argument('--selector2', type=str, choices=['min', 'avg'])
     args = parser.parse_args()
     aggregate(args)
