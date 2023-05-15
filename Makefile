@@ -27,6 +27,7 @@ smoke-train:
 hyper_cmnist:
 	parallel \
 		--eta \
+		--shuf \
 		--jobs $$(nvidia-smi -L | wc -l) \
 		--joblog joblogs/$@.txt \
 		--rpl '{%0} 1 $$_ = $$job->slot() - 1' \
@@ -51,6 +52,7 @@ hyper_cmnist:
 hyper_chexpert:
 	parallel \
 		--eta \
+		--shuf \
 		--jobs $$(nvidia-smi -L | wc -l) \
 		--joblog joblogs/$@.txt \
 		--rpl '{%0} 1 $$_ = $$job->slot() - 1' \
