@@ -68,6 +68,9 @@ def aggregate(args):
                 _, loader_name = name.split("_")
                 test_sets.add(loader_name)
 
+        if args.split is not None:
+            test_sets = { args.split }
+
         for test_set in test_sets:
             result = optimal_record[f"corrects_{test_set}"], optimal_record[f"totals_{test_set}"]
             agg[key][test_set].append(result)
@@ -99,5 +102,6 @@ if __name__ == "__main__":
     parser.add_argument('--path', type=str, required=True)
     parser.add_argument('--selector1', type=str, choices=['min', 'avg'])
     parser.add_argument('--selector2', type=str, choices=['min', 'avg'])
+    parser.add_argument('--split', type=str, default=None)
     args = parser.parse_args()
     aggregate(args)
