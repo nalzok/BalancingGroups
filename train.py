@@ -130,7 +130,6 @@ if __name__ == "__main__":
         "celeba": 50 + 10,
         "chexpert-embedding": 300 + 60,
         "coloredmnist": 300 + 60,
-        "waterbirds": 300 + 60,
         "multinli": 5 + 2,
         "civilcomments": 5 + 2
     }[args["dataset"]]

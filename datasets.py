@@ -25,6 +25,10 @@ class GroupDataset(Dataset):
         self.transform_ = transform
         self.metadata_path = metadata
         df = self.metadata_full = pd.read_csv(metadata, index_col="id")
+        if metadata.name.startswith("metadata_civilcomments_coarse"):
+            if imputed is None or imputed == 0:
+                df["a"] = (df["a"] != 0).astype(float)
+
         if isinstance(split, str):
             split = {"tr": 0, "va": 1, "te": 2}[split]
         df = df[df["split"] == split]
