@@ -39,7 +39,7 @@ final_chexpert:
 		--hparams_seed 2023 \
 		--init_seed {1} \
 		::: 2023 2024 2025 2026 \
-		::: chexpert-embeddings \
+		::: chexpert-embedding \
 		::: erm ttlsa dro subg
 
 
