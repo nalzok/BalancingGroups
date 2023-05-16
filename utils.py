@@ -79,4 +79,4 @@ chosen_hparams_best["chexpert-embedding"] = {
 
 
 for dataset in chosen_hparams_best:
-    chosen_hparams_best[dataset]["ttlsa"] = chosen_hparams_best[dataset]["erm"]
+    chosen_hparams_best[dataset]["ttlsi"] = chosen_hparams_best[dataset]["ttlsa"] = chosen_hparams_best[dataset]["erm"]

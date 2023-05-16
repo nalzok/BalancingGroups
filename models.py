@@ -92,7 +92,7 @@ class ERM(torch.nn.Module):
             "sgd": get_sgd_optim
         }
 
-        if self.__class__.__name__ == "TTLSA":
+        if self.__class__.__name__ in { "TTLSA", "TTLSI" }:
             out_features = self.n_classes * self.n_groups
         else:
             out_features = self.n_classes
@@ -392,3 +392,12 @@ class TTLSA(ERM):
         target_prob = target_prob.sum(dim=-1)
 
         return torch.log(target_prob)
+
+
+class TTLSI(TTLSA):
+    def predict(self, x):
+        logits = self.network(x)
+        prob = torch.softmax(logits, dim=-1)
+        prob = prob.reshape(-1, self.n_classes, self.n_groups)
+        prob = prob.sum(dim=-1)
+        return torch.log(prob)

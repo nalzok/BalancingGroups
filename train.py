@@ -17,7 +17,7 @@ from utils import Tee, randl, chosen_hparams_best
 
 
 datasets = {"waterbirds", "celeba", "chexpert-embedding", "coloredmnist", "multinli", "civilcomments"}
-methods = {"erm", "suby", "subg", "rwy", "rwg", "dro", "jtt", "ttlsa"}
+methods = {"erm", "suby", "subg", "rwy", "rwg", "dro", "jtt", "ttlsa", "ttlsi"}
 
 
 def parse_args():
@@ -67,6 +67,7 @@ def run_experiment(args):
         "dro": models.GroupDRO,
         "jtt": models.JTT,
         "ttlsa": models.TTLSA,
+        "ttlsi": models.TTLSI,
     }[args["method"]](args, loaders["tr"])
 
     bcts_optimizer_initial = None   # suppress warning

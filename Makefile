@@ -24,7 +24,7 @@ smoke-train:
 		--init_seed 2023
 
 
-baseline:
+invariance:
 	parallel \
 		--eta \
 		--jobs $$(nvidia-smi -L | wc -l) \
@@ -40,7 +40,7 @@ baseline:
 		--init_seed {1} \
 		::: 2023 2024 2025 2026 \
 		::: waterbirds celeba multinli civilcomments \
-		::: dro subg
+		::: erm ttlsi
 
 
 hyper_cmnist:

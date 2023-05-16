@@ -11,7 +11,7 @@ import pprint
 numerical_pattern = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 dataset_pattern = "(celeba|chexpert-embedding|civilcomments|coloredmnist|multinli|waterbirds)"
 imputation_pattern = f"impute(None|{numerical_pattern})"
-method_pattern = "(erm|suby|subg|rwy|rwg|dro|jtt|ttlsa)"
+method_pattern = "(erm|suby|subg|rwy|rwg|dro|jtt|ttlsa|ttlsi)"
 hyperparem_pattern = f"batch({numerical_pattern})_lr({numerical_pattern})_decay({numerical_pattern})"
 seed_pattern = f"seed_({numerical_pattern})_({numerical_pattern})"
 pattern = re.compile(f"^{dataset_pattern}_{imputation_pattern}_{method_pattern}_{hyperparem_pattern}_{seed_pattern}.out$")
