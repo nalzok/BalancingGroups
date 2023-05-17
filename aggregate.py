@@ -5,7 +5,6 @@ import re
 import json
 from collections import defaultdict
 import statistics
-import pprint
 
 
 numerical_pattern = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
@@ -72,9 +71,16 @@ def aggregate(args):
             test_sets = { args.split }
 
         for test_set in test_sets:
-            result = optimal_record[f"corrects_{test_set}"], optimal_record[f"totals_{test_set}"]
-            agg[key][test_set].append(result)
+            corrects, totals = optimal_record[f"corrects_{test_set}"], optimal_record[f"totals_{test_set}"]
 
+            if len(corrects) == len(totals) == 16:
+                # for CivilComments, we convert fine to coarse for a fair comparison
+                corrects = [corrects[0], sum(corrects[1:8]), corrects[8], sum(corrects[6:16])]
+                totals = [totals[0], sum(totals[1:8]), totals[8], sum(totals[6:16])]
+
+            agg[key][test_set].append((corrects, totals))
+
+    imputed_set = set()
     everything = {}
     for key, by_key in agg.items():
         aggregated = {}
@@ -90,11 +96,22 @@ def aggregate(args):
                 acc_list.append(acc)
 
             acc_mean, acc_std = statistics.mean(acc_list), statistics.stdev(acc_list)
-            aggregated[loader_name] = f"{acc_mean*100:.2f} \\pm {acc_std*100:.2f}"
+            aggregated[loader_name] = f"{acc_mean*100:.2f} / {acc_std*100:.2f}"
 
-        everything[key] = aggregated
+        dataset, imputed, method, _, _, _ = key
+        imputed_set.add(imputed)
+        everything[(dataset, imputed, method)] = aggregated
 
-    pprint.pprint(everything)
+    datasets = ["celeba", "waterbirds", "multinli", "civilcomments"]
+    methods = ["erm", "ttlsi", "dro", "subg", "ttlsa"]
+
+    for dataset in datasets:
+        for imputed in imputed_set:
+            print(dataset, imputed)
+            for method in methods:
+                v = everything[(dataset, imputed, method)]
+                out = v[args.split] if args.split is not None else v
+                print("&", method, "&", out, "\\\\")
 
 
 if __name__ == "__main__":
