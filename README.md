@@ -1,6 +1,7 @@
-# BalancingGroups
+# TTLSA
 
-Code to replicate the experimental results from [Simple data balancing baselines achieve competitive worst-group-accuracy](https://arxiv.org/abs/2110.14503).
+Code to replicate the experimental results from our TTLSA paper.
+Based on the facebookresearch/BalancingGroups repo by FAIR.
 
 ## Replicating the main results
 
@@ -9,8 +10,7 @@ Code to replicate the experimental results from [Simple data balancing baselines
 Easiest way to have a working environment for this repo is to create a conda environement with the following commands
 
 ```bash
-conda env create -f environment.yaml
-conda activate balancinggroups
+conda create --name ttlsa --file conda-spec/spec-file.txt
 ```	
 
 If conda is not available, please install the dependencies listed in the requirements.txt file.
@@ -20,29 +20,27 @@ If conda is not available, please install the dependencies listed in the require
 This script downloads, extracts and formats the datasets metadata so that it works with the rest of the code out of the box.
 
 ```bash
-python setup_datasets.py --download --data_path data
+python setup_datasets.py --download --data_path data celeba waterbirds civilcomments multinli
 ```
 
 ### Launch jobs
 
-To reproduce the experiments in the paper on a SLURM cluster :
+To reproduce the experiments in the paper:
 
 ```bash
-# Launching 1400 combo seeds = 50 hparams for 4 datasets for 7 algorithms
-# Each combo seed is ran 5 times to compute error bars, totalling 7000 jobs
-python train.py --data_path data --output_dir main_sweep --num_hparams_seeds 1400 --num_init_seeds 5 --partition <slurm_partition>
+make train
 ```
 
-If you want to run the jobs localy, omit the --partition argument.
+### Aggregate results
 
-### Parse results
-
-The parse.py script can generate all of the plots and tables from the paper. 
-By default, it generates the best test worst-group-accuracy table for each dataset/method.
+The parse.py script can generate the main plots and tables from the paper. 
 This script can be called while the experiments are still running. 
 
 ```bash
-python parse.py main_sweep
+# worst group accuracy
+python3 -m aggregate --path paper --selector1 min --selector2 min --split te
+# average accuracy
+python3 -m aggregate --path paper --selector1 avg --selector2 avg --split te
 ```
 
 ## License
