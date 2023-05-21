@@ -1,6 +1,8 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+from sklearn.metrics import confusion_matrix
 
 
 def main(metadata):
@@ -15,7 +17,9 @@ def main(metadata):
     correlations = {}
     for k, v in splits.items():
         split = df[df["split"] == v]
-        correlations[k] = split["y"].corr(split["a"])
+        mat = confusion_matrix(split["y"], split["a"])
+        mat = mat.astype(float) / np.sum(mat)
+        correlations[k] = np.max(mat)
     return correlations
 
 

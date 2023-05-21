@@ -5,6 +5,7 @@ import re
 import json
 from collections import defaultdict
 import statistics
+from math import sqrt
 
 
 numerical_pattern = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
@@ -87,7 +88,9 @@ def aggregate(args):
         for loader_name, results in by_key.items():
             acc_list = []
             for corrects, totals in results:
-                if args.selector2 == "min":
+                if args.all:
+                    acc = [0 if t == 0 else c/t for c, t in zip(corrects, totals)]
+                elif args.selector2 == "min":
                     acc = min(1 if t == 0 else c/t for c, t in zip(corrects, totals))
                 elif args.selector2 == "avg":
                     acc = sum(corrects) / sum(totals)
@@ -95,15 +98,25 @@ def aggregate(args):
                     raise ValueError(f"Unknown selector '{args.selector2}'")
                 acc_list.append(acc)
 
-            acc_mean, acc_std = statistics.mean(acc_list), statistics.stdev(acc_list)
-            aggregated[loader_name] = f"{acc_mean*100:.2f} / {acc_std*100:.2f}"
+            if args.all:
+                acc_list_group = []
+                for i in range(len(acc_list[0])):
+                    replications = [acc_by_group[i] for acc_by_group in acc_list]
+                    acc_mean, acc_std = statistics.mean(replications), statistics.stdev(replications)
+                    std_err = acc_std / sqrt(len(replications))
+                    acc_list_group.append((acc_mean, std_err))
+                aggregated[loader_name] = " & ".join(f"{acc*100:.2f} ({std_err*100:.2f})" for acc, std_err in acc_list_group)
+            else:
+                acc_mean, acc_std = statistics.mean(acc_list), statistics.stdev(acc_list)
+                std_err = acc_std / sqrt(len(acc_list))
+                aggregated[loader_name] = f"{acc_mean*100:.2f} ({std_err*100:.2f})"
 
         dataset, imputed, method, _, _, _ = key
         imputed_set.add(imputed)
         everything[(dataset, imputed, method)] = aggregated
 
     datasets = ["celeba", "waterbirds", "multinli", "civilcomments"]
-    methods = ["erm", "ttlsi", "dro", "subg", "ttlsa"]
+    methods = ["erm", "dro", "subg", "ttlsi", "ttlsa"]
 
     for dataset in datasets:
         for imputed in imputed_set:
@@ -118,7 +131,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Aggregate results')
     parser.add_argument('--path', type=str, required=True)
     parser.add_argument('--selector1', type=str, choices=['min', 'avg'])
-    parser.add_argument('--selector2', type=str, choices=['min', 'avg'])
+    parser.add_argument('--selector2', type=str, choices=['min', 'avg', 'all'])
     parser.add_argument('--split', type=str, default=None)
+    parser.add_argument('--all', type=bool, default=False)
     args = parser.parse_args()
     aggregate(args)

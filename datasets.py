@@ -376,7 +376,7 @@ def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=No
     num_workers = os.cpu_count() // torch.cuda.device_count()
 
     if missing is not None:
-        assert method == "erm" and duplicates is None
+        assert method == "erm" and duplicates is None and imputed is None
 
         dataset = Dataset(data_path, "tr", None, None)
         perm = torch.randperm(len(dataset))
@@ -390,6 +390,13 @@ def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=No
                 dataset,
                 batch_size=batch_size,
                 sampler=sampler_tr,
+                num_workers=num_workers,
+                pin_memory=True
+            ),
+            "va": DataLoader(
+                Dataset(data_path, "va", None),
+                batch_size=128,
+                sampler=None,
                 num_workers=num_workers,
                 pin_memory=True
             ),
