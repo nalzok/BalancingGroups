@@ -106,13 +106,19 @@ def aggregate(args):
                 acc_list_group = []
                 for i in range(len(acc_list[0])):
                     replications = [acc_by_group[i] for acc_by_group in acc_list]
-                    acc_mean, acc_std = statistics.mean(replications), statistics.stdev(replications)
-                    std_err = acc_std / sqrt(len(replications))
+                    if len(replications) > 1:
+                        acc_mean, acc_std = statistics.mean(replications), statistics.stdev(replications)
+                        std_err = acc_std / sqrt(len(replications))
+                    else:
+                        acc_mean, std_err = replications[0], 0
                     acc_list_group.append((acc_mean, std_err))
                 aggregated[loader_name] = " & ".join(f"{acc*100:.2f} ({std_err*100:.2f})" for acc, std_err in acc_list_group)
             else:
-                acc_mean, acc_std = statistics.mean(acc_list), statistics.stdev(acc_list)
-                std_err = acc_std / sqrt(len(acc_list))
+                if len(acc_list) > 1:
+                    acc_mean, acc_std = statistics.mean(acc_list), statistics.stdev(acc_list)
+                    std_err = acc_std / sqrt(len(acc_list))
+                else:
+                    acc_mean, std_err = acc_list[0], 0
                 aggregated[loader_name] = f"{acc_mean*100:.2f} ({std_err*100:.2f})"
 
         dataset, imputed, method, _, _, _ = key
@@ -126,6 +132,8 @@ def aggregate(args):
         for imputed in imputed_set:
             print(dataset, imputed)
             for method in methods:
+                if (dataset, imputed, method) not in everything:
+                    continue
                 v = everything[(dataset, imputed, method)]
                 out = v[args.split] if args.split is not None else v
                 print("&", method, "&", out, "\\\\")
