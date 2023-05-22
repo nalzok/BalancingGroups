@@ -80,3 +80,38 @@ chosen_hparams_best["chexpert-embedding"] = {
 
 for dataset in chosen_hparams_best:
     chosen_hparams_best[dataset]["ttlsi"] = chosen_hparams_best[dataset]["ttlsa"] = chosen_hparams_best[dataset]["erm"]
+
+chosen_epoch_best_imputation = {
+        ('celeba', 0.5): 25,
+        ('celeba', 0.75): 25,
+        ('celeba', 0.875): 38,
+        ('celeba', 0.9375): 38,
+        ('celeba', 0.96875): 39,
+        ('celeba', 0.984375): 38,
+        ('celeba', 0.9921875): 39,
+        ('celeba', 0.99609375): 39,
+        ('civilcomments', 0.5): 0,
+        ('civilcomments', 0.75): 0,
+        ('civilcomments', 0.875): 0,
+        ('civilcomments', 0.9375): 0,
+        ('civilcomments', 0.96875): 0,
+        ('civilcomments', 0.984375): 0,
+        ('civilcomments', 0.9921875): 2,
+        ('civilcomments', 0.99609375): 0,
+        ('multinli', 0.5): 0,
+        ('multinli', 0.75): 1,
+        ('multinli', 0.875): 1,
+        ('multinli', 0.9375): 1,
+        ('multinli', 0.96875): 3,
+        ('multinli', 0.984375): 1,
+        ('multinli', 0.9921875): 2,
+        ('multinli', 0.99609375): 3,
+        ('waterbirds', 0.5): 67,
+        ('waterbirds', 0.75): 6,
+        ('waterbirds', 0.875): 12,
+        ('waterbirds', 0.9375): 206,
+        ('waterbirds', 0.96875): 42,
+        ('waterbirds', 0.984375): 155,
+        ('waterbirds', 0.9921875): 158,
+        ('waterbirds', 0.99609375): 247,
+        }

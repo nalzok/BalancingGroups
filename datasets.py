@@ -20,7 +20,7 @@ class GroupDataset(Dataset):
     ):
         metadata = Path(metadata)
         if imputed is not None and imputed != 0:
-            metadata = metadata.with_stem(f"{metadata.stem}_impute{imputed}")
+            metadata = metadata.with_stem(f"{metadata.stem}_impute{imputed}_avg")
 
         self.transform_ = transform
         self.metadata_path = metadata

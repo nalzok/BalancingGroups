@@ -15,7 +15,7 @@ from pathlib import Path
 
 import models
 from datasets import get_loaders
-from utils import Tee, chosen_hparams_best
+from utils import Tee, chosen_hparams_best, chosen_epoch_best_imputation
 
 
 datasets = {"waterbirds", "celeba", "chexpert-embedding", "coloredmnist", "multinli", "civilcomments"}
@@ -71,23 +71,24 @@ def run_experiment(args):
 
         print(json.dumps(result))
 
-    metadata = []
-    for i, x, y, g in loaders["te"]:
-        with torch.inference_mode():
-            ghat = torch.softmax(model.predict(x.cuda()), -1)
+        if epoch == chosen_epoch_best_imputation[(args["dataset"], args["missing"])]:
+            metadata = []
+            for i, x, y, g in loaders["te"]:
+                with torch.inference_mode():
+                    ghat = torch.softmax(model.predict(x.cuda()), -1)
 
-        for ii, gghat in zip(i.tolist(), ghat[:, 1].tolist()):
-            metadata.append((dataset.index[ii], gghat))
+                for ii, gghat in zip(i.tolist(), ghat[:, 1].tolist()):
+                    metadata.append((dataset.index[ii], gghat))
 
-    metadata = pd.DataFrame.from_records(metadata, index="id", columns=["id", "a"])
-    metadata_imputed = dataset.metadata_full.join(metadata, rsuffix="_impute")
-    mask = np.isnan(metadata_imputed["a_impute"])
-    metadata_imputed.loc[mask, "a_impute"] = metadata_imputed["a"][mask]
-    metadata_imputed = metadata_imputed.rename(columns={"a_impute": "a", "a": "a_orig"})
+            metadata = pd.DataFrame.from_records(metadata, index="id", columns=["id", "a"])
+            metadata_imputed = dataset.metadata_full.join(metadata, rsuffix="_impute")
+            mask = np.isnan(metadata_imputed["a_impute"])
+            metadata_imputed.loc[mask, "a_impute"] = metadata_imputed["a"][mask]
+            metadata_imputed = metadata_imputed.rename(columns={"a_impute": "a", "a": "a_orig"})
 
-    metadata_path = Path(dataset.metadata_path)
-    metadata_path = metadata_path.with_stem(f"{metadata_path.stem}_impute{args['missing']}")
-    metadata_imputed.to_csv(metadata_path)
+            metadata_path = Path(dataset.metadata_path)
+            metadata_path = metadata_path.with_stem(f"{metadata_path.stem}_impute{args['missing']}_avg")
+            metadata_imputed.to_csv(metadata_path)
 
 
 if __name__ == "__main__":

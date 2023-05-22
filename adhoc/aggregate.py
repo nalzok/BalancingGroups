@@ -49,6 +49,10 @@ def aggregate(args):
 
             corrects_va = record["corrects_va"]
             totals_va = record["totals_va"]
+            if len(corrects_va) == len(totals_va) == 16:
+                # for CivilComments, we convert fine to coarse for a fair comparison
+                corrects_va = [corrects_va[0], sum(corrects_va[1:8]), corrects_va[8], sum(corrects_va[6:16])]
+                totals_va = [totals_va[0], sum(totals_va[1:8]), totals_va[8], sum(totals_va[6:16])]
 
             if args.selector1 == "min":
                 acc_va = min(1 if t == 0 else c/t for c, t in zip(corrects_va, totals_va))
@@ -131,7 +135,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Aggregate results')
     parser.add_argument('--path', type=str, required=True)
     parser.add_argument('--selector1', type=str, choices=['min', 'avg'])
-    parser.add_argument('--selector2', type=str, choices=['min', 'avg', 'all'])
+    parser.add_argument('--selector2', type=str, choices=['min', 'avg'])
     parser.add_argument('--split', type=str, default=None)
     parser.add_argument('--all', type=bool, default=False)
     args = parser.parse_args()
