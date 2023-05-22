@@ -11,7 +11,7 @@ from math import sqrt
 numerical_pattern = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 dataset_pattern = "(celeba|chexpert-embedding|civilcomments|coloredmnist|multinli|waterbirds)"
 imputation_pattern = f"impute(None|{numerical_pattern})"
-method_pattern = "(erm|suby|subg|rwy|rwg|dro|jtt|ttlsa|ttlsi)"
+method_pattern = "(erm|suby|subg|rwy|rwg|dro|jtt|ttlsi|ttlsa|ttlsa-oracle|ttlsa-noop)"
 hyperparem_pattern = f"batch({numerical_pattern})_lr({numerical_pattern})_decay({numerical_pattern})"
 seed_pattern = f"seed_({numerical_pattern})_({numerical_pattern})"
 pattern = re.compile(f"^{dataset_pattern}_{imputation_pattern}_{method_pattern}_{hyperparem_pattern}_{seed_pattern}.out$")
@@ -126,7 +126,7 @@ def aggregate(args):
         everything[(dataset, imputed, method)] = aggregated
 
     datasets = ["celeba", "waterbirds", "multinli", "civilcomments"]
-    methods = ["erm", "dro", "subg", "ttlsi", "ttlsa"]
+    methods = ["erm", "dro", "subg", "ttlsi", "ttlsa", "ttlsa-oracle", "ttlsa-noop"]
 
     for dataset in datasets:
         for imputed in imputed_set:

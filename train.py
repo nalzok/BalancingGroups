@@ -17,7 +17,7 @@ from utils import Tee, randl, chosen_hparams_best
 
 
 datasets = {"waterbirds", "celeba", "chexpert-embedding", "coloredmnist", "multinli", "civilcomments"}
-methods = {"erm", "suby", "subg", "rwy", "rwg", "dro", "jtt", "ttlsa", "ttlsi"}
+methods = {"erm", "suby", "subg", "rwy", "rwg", "dro", "jtt", "ttlsi", "ttlsa", "ttlsa-oracle", "ttlsa-noop"}
 
 
 def parse_args():
@@ -66,12 +66,14 @@ def run_experiment(args):
         "rwg": models.ERM,
         "dro": models.GroupDRO,
         "jtt": models.JTT,
-        "ttlsa": models.TTLSA,
         "ttlsi": models.TTLSI,
+        "ttlsa": models.TTLSA,
+        "ttlsa-oracle": models.Oracle,
+        "ttlsa-noop": models.Noop,
     }[args["method"]](args, loaders["tr"])
 
     bcts_optimizer_initial = None   # suppress warning
-    if args["method"] == "ttlsa":
+    if args["method"] in {"ttlsa", "ttlsa-oracle", "ttlsa-noop"}:
         bcts_optimizer_initial = model.bcts_optimizer.state_dict()
 
     for epoch in range(args["num_epochs"]):
@@ -83,7 +85,7 @@ def run_experiment(args):
                 args["method"],
                 model.weights.tolist())
 
-        if args["method"] == "ttlsa":
+        if args["method"] in {"ttlsa", "ttlsa-oracle", "ttlsa-noop"}:
             with torch.inference_mode():
                 model.T.zero_()
                 model.b.zero_()
@@ -92,7 +94,7 @@ def run_experiment(args):
         for i, x, y, g in loaders["tr"]:
             train_loss += model.update(i, x, y, g, epoch)
 
-        if args["method"] == "ttlsa":
+        if args["method"] in {"ttlsa", "ttlsa-oracle", "ttlsa-noop"}:
             model.bcts_optimizer.load_state_dict(bcts_optimizer_initial)
 
             for i, x, y, g in loaders["va"]:

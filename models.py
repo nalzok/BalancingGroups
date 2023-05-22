@@ -1,6 +1,4 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-from collections import OrderedDict
-
 import torch
 import torch.nn.functional as F
 import torchvision
@@ -92,7 +90,7 @@ class ERM(torch.nn.Module):
             "sgd": get_sgd_optim
         }
 
-        if self.__class__.__name__ in { "TTLSA", "TTLSI" }:
+        if self.__class__.__name__ in { "TTLSA", "TTLSI", "Oracle", "Noop" }:
             out_features = self.n_classes * self.n_groups
         else:
             out_features = self.n_classes
@@ -398,6 +396,42 @@ class TTLSI(TTLSA):
     def predict(self, x):
         logits = self.network(x)
         prob = torch.softmax(logits, dim=-1)
+        prob = prob.reshape(-1, self.n_classes, self.n_groups)
+        prob = prob.sum(dim=-1)
+        return torch.log(prob)
+
+
+class Oracle(TTLSA):
+    def __init__(self, hparams, dataloader):
+        super().__init__(hparams, dataloader)
+
+        oracle_prior = torch.tensor(dataloader.dataset.group_sizes, dtype=torch.float)
+        oracle_prior /= torch.sum(oracle_prior)
+        self.register_buffer("oracle_prior", oracle_prior.cuda())
+
+    def predict(self, x):
+        logits = self.network(x)
+        calibrated = (logits - self.b) / torch.exp(self.T)
+        prob = torch.softmax(calibrated, dim=-1)
+        prob = prob * self.oracle_prior
+        prob = prob.reshape(-1, self.n_classes, self.n_groups)
+        prob = prob.sum(dim=-1)
+        return torch.log(prob)
+
+
+class Noop(TTLSA):
+    def __init__(self, hparams, dataloader):
+        super().__init__(hparams, dataloader)
+
+        noop_prior = torch.ones_like(torch.tensor(dataloader.dataset.group_sizes, dtype=torch.float))
+        noop_prior /= torch.sum(noop_prior)
+        self.register_buffer("noop_prior", noop_prior.cuda())
+
+    def predict(self, x):
+        logits = self.network(x)
+        calibrated = (logits - self.b) / torch.exp(self.T)
+        prob = torch.softmax(calibrated, dim=-1)
+        prob = prob * self.noop_prior
         prob = prob.reshape(-1, self.n_classes, self.n_groups)
         prob = prob.sum(dim=-1)
         return torch.log(prob)

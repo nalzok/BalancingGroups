@@ -447,7 +447,7 @@ def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=No
 
     if dataset_name in { "chexpert-embedding", "coloredmnist" }:
         for i in range(2, 23):
-            loaders[f"te-{i-2}"] = dl(Dataset(data_path, i, None, imputed=imputed), 128, True, None)
+            loaders[f"te-{i-2}"] = dl(Dataset(data_path, i, None, imputed=imputed), 512, True, None)
     else:
         loaders["te"] = dl(Dataset(data_path, "te", None, imputed=imputed), 128, True, None)
 
