@@ -8,3 +8,4 @@ paper_sweep/**
 MNIST/**
 lightning_logs/**
 joblogs/**
+figures/**

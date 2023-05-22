@@ -42,12 +42,13 @@ def plot(args):
                 x = np.linspace(0, 1, 21)
                 mean = np.array([v[f"te-{split}"][0] for split in range(21)])
                 std = np.array([v[f"te-{split}"][1] for split in range(21)])
-                ax.errorbar(x, mean, std)
+                ax.errorbar(x, mean, std, label=method)
 
             plt.ylim((0.5, 1))
             plt.xlabel("Shift parameter")
             plt.ylabel("Accuracy")
             plt.title(f"Accuracy on {dataset}")
+            plt.legend()
             plt.grid(True)
             fig.tight_layout()
 
