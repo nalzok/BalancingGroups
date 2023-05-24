@@ -217,4 +217,4 @@ dependencies:
   - transformers
   - lightning
   - py-spy
-prefix: /home/ubuntu/miniconda3/envs/ttlsa
+prefix: /home/qys/miniconda3/envs/ttlsa

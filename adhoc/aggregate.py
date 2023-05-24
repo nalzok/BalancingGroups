@@ -11,7 +11,7 @@ from math import sqrt
 numerical_pattern = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 dataset_pattern = "(celeba|chexpert-embedding|civilcomments|coloredmnist|multinli|waterbirds)"
 imputation_pattern = f"impute(None|{numerical_pattern})"
-method_pattern = "(erm|suby|subg|rwy|rwg|dro|jtt|ttlsi|ttlsa|ttlsa-oracle|ttlsa-noop)"
+method_pattern = "(erm|suby|subg|rwy|rwg|dro|jtt|ttlsi|ttlsa|ttlsa-oracle|ttlsa-batch-oracle)"
 hyperparem_pattern = f"batch({numerical_pattern})_lr({numerical_pattern})_decay({numerical_pattern})"
 seed_pattern = f"seed_({numerical_pattern})_({numerical_pattern})"
 pattern = re.compile(f"^{dataset_pattern}_{imputation_pattern}_{method_pattern}_{hyperparem_pattern}_{seed_pattern}.out$")
@@ -125,8 +125,8 @@ def aggregate(args):
         imputed_set.add(imputed)
         everything[(dataset, imputed, method)] = aggregated
 
-    datasets = ["celeba", "waterbirds", "multinli", "civilcomments"]
-    methods = ["erm", "dro", "subg", "ttlsi", "ttlsa", "ttlsa-oracle", "ttlsa-noop"]
+    datasets = ["celeba", "waterbirds", "multinli", "civilcomments", "chexpert-embedding", "coloredmnist"]
+    methods = ["erm", "dro", "subg", "ttlsi", "ttlsa", "ttlsa-oracle", "ttlsa-batch-oracle"]
 
     for dataset in datasets:
         for imputed in imputed_set:
@@ -145,6 +145,6 @@ if __name__ == "__main__":
     parser.add_argument('--selector1', type=str, choices=['min', 'avg'])
     parser.add_argument('--selector2', type=str, choices=['min', 'avg'])
     parser.add_argument('--split', type=str, default=None)
-    parser.add_argument('--all', type=bool, default=False)
+    parser.add_argument('--all', action='store_true')
     args = parser.parse_args()
     aggregate(args)

@@ -1,8 +1,15 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+import warnings
+
 import torch
 import torch.nn.functional as F
 import torchvision
+from torchmetrics.classification import BinaryAUROC
 from transformers import BertForSequenceClassification, AdamW, get_scheduler
+
+
+# It's okay if a batch only contains negative/positive samples
+warnings.filterwarnings("ignore", message="No positive samples in targets, true positive value should be meaningless.")
 
 
 class ToyNet(torch.nn.Module):
@@ -90,7 +97,7 @@ class ERM(torch.nn.Module):
             "sgd": get_sgd_optim
         }
 
-        if self.__class__.__name__ in { "TTLSA", "TTLSI", "Oracle", "Noop" }:
+        if self.__class__.__name__ in { "TTLSA", "TTLSI", "Oracle", "BatchOracle" }:
             out_features = self.n_classes * self.n_groups
         else:
             out_features = self.n_classes
@@ -189,31 +196,55 @@ class ERM(torch.nn.Module):
         self.last_epoch = epoch
         return loss_value
 
-    def predict(self, x):
+    def predict(self, x, oracle_prior, batch_oracle_prior):
         return self.network(x)
 
     def accuracy(self, loader, predict_g=False):
         nb_groups = loader.dataset.nb_groups
         nb_labels = loader.dataset.nb_labels
-        corrects = torch.zeros(nb_groups * nb_labels, dtype=torch.long)
+
         totals = torch.zeros(nb_groups * nb_labels, dtype=torch.long)
+        for i, x, y, g in loader:
+            g = torch.round(g).int()    # harden soft labels, assuming binary labels
+            groups = nb_groups * y + g
+            for gi in groups.unique():
+                totals[gi] += (groups == gi).sum()
+        oracle_prior = totals.float() / totals.sum()
+        oracle_prior = oracle_prior.cuda()
+
+        corrects = torch.zeros(nb_groups * nb_labels, dtype=torch.long)
+        metric = BinaryAUROC()
+
         self.eval()
         with torch.inference_mode():
             for i, x, y, g in loader:
                 g = torch.round(g).int()    # harden soft labels, assuming binary labels
-                predictions = self.predict(x.cuda())
-                if predictions.squeeze().ndim == 1:
-                    predictions = (predictions > 0).cpu().eq(g if predict_g else y)
-                else:
-                    predictions = predictions.argmax(1).cpu().eq(g if predict_g else y)
                 groups = nb_groups * y + g
+
+                batch_oracle_prior = torch.bincount(groups, minlength=nb_groups * nb_labels)
+                batch_oracle_prior = batch_oracle_prior.float() / batch_oracle_prior.sum()
+                batch_oracle_prior = batch_oracle_prior.cuda()
+                predictions = self.predict(x.cuda(), oracle_prior, batch_oracle_prior).cpu()
+
+                labels = g if predict_g else y
+                if predictions.squeeze().ndim == 1:
+                    metric(predictions, labels)
+                    predictions = (predictions > 0).eq(labels)
+                else:
+                    probability = torch.softmax(predictions, dim=-1)
+                    metric(probability[:, 1], labels)
+                    predictions = predictions.argmax(1).eq(labels)
+
                 for gi in groups.unique():
                     corrects[gi] += predictions[(groups == gi)].sum()
-                    totals[gi] += (groups == gi).sum()
-        corrects, totals = corrects.tolist(), totals.tolist()
         self.train()
-        return sum(corrects) / sum(totals), corrects, totals, \
-            [c/t if t > 0 else float("nan") for c, t in zip(corrects, totals)]
+
+        auc = metric.compute()
+        acc = corrects.sum() / totals.sum()
+        corrects, totals = corrects.tolist(), totals.tolist()
+        group_accs = [c/t if t > 0 else float("nan") for c, t in zip(corrects, totals)]
+        return auc.item(), acc.item(), corrects, totals, group_accs
+
 
     def load(self, fname):
         dicts = torch.load(fname)
@@ -362,7 +393,7 @@ class TTLSA(ERM):
         m = torch.reshape(y[:, :, None] * g[:, None, :], (-1, self.n_groups * self.n_classes))
         return self.loss((logits - self.b) / torch.exp(self.T), m).mean()
 
-    def predict(self, x):
+    def predict(self, x, oracle_prior, batch_oracle_prior):
         logits = self.network(x)
         calibrated = (logits - self.b) / torch.exp(self.T)
 
@@ -393,7 +424,7 @@ class TTLSA(ERM):
 
 
 class TTLSI(TTLSA):
-    def predict(self, x):
+    def predict(self, x, oracle_prior, batch_oracle_prior):
         logits = self.network(x)
         prob = torch.softmax(logits, dim=-1)
         prob = prob.reshape(-1, self.n_classes, self.n_groups)
@@ -402,36 +433,22 @@ class TTLSI(TTLSA):
 
 
 class Oracle(TTLSA):
-    def __init__(self, hparams, dataloader):
-        super().__init__(hparams, dataloader)
-
-        oracle_prior = torch.tensor(dataloader.dataset.group_sizes, dtype=torch.float)
-        oracle_prior /= torch.sum(oracle_prior)
-        self.register_buffer("oracle_prior", oracle_prior.cuda())
-
-    def predict(self, x):
+    def predict(self, x, oracle_prior, batch_oracle_prior):
         logits = self.network(x)
         calibrated = (logits - self.b) / torch.exp(self.T)
         prob = torch.softmax(calibrated, dim=-1)
-        prob = prob * self.oracle_prior
+        prob = prob * oracle_prior
         prob = prob.reshape(-1, self.n_classes, self.n_groups)
         prob = prob.sum(dim=-1)
         return torch.log(prob)
 
 
-class Noop(TTLSA):
-    def __init__(self, hparams, dataloader):
-        super().__init__(hparams, dataloader)
-
-        noop_prior = torch.ones_like(torch.tensor(dataloader.dataset.group_sizes, dtype=torch.float))
-        noop_prior /= torch.sum(noop_prior)
-        self.register_buffer("noop_prior", noop_prior.cuda())
-
-    def predict(self, x):
+class BatchOracle(TTLSA):
+    def predict(self, x, oracle_prior, batch_oracle_prior):
         logits = self.network(x)
         calibrated = (logits - self.b) / torch.exp(self.T)
         prob = torch.softmax(calibrated, dim=-1)
-        prob = prob * self.noop_prior
+        prob = prob * batch_oracle_prior
         prob = prob.reshape(-1, self.n_classes, self.n_groups)
         prob = prob.sum(dim=-1)
         return torch.log(prob)

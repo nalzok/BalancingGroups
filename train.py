@@ -17,7 +17,7 @@ from utils import Tee, randl, chosen_hparams_best
 
 
 datasets = {"waterbirds", "celeba", "chexpert-embedding", "coloredmnist", "multinli", "civilcomments"}
-methods = {"erm", "suby", "subg", "rwy", "rwg", "dro", "jtt", "ttlsi", "ttlsa", "ttlsa-oracle", "ttlsa-noop"}
+methods = {"erm", "suby", "subg", "rwy", "rwg", "dro", "jtt", "ttlsi", "ttlsa", "ttlsa-oracle", "ttlsa-batch-oracle"}
 
 
 def parse_args():
@@ -36,6 +36,7 @@ def parse_args():
     parser.add_argument('--lr', type=float, default=None)
     parser.add_argument('--weight_decay', type=float, default=None)
     parser.add_argument('--batch_size', type=int, default=None)
+    parser.add_argument('--fast', action='store_true')
     return vars(parser.parse_args())
 
 
@@ -69,11 +70,11 @@ def run_experiment(args):
         "ttlsi": models.TTLSI,
         "ttlsa": models.TTLSA,
         "ttlsa-oracle": models.Oracle,
-        "ttlsa-noop": models.Noop,
+        "ttlsa-batch-oracle": models.BatchOracle,
     }[args["method"]](args, loaders["tr"])
 
     bcts_optimizer_initial = None   # suppress warning
-    if args["method"] in {"ttlsa", "ttlsa-oracle", "ttlsa-noop"}:
+    if args["method"] in {"ttlsa", "ttlsa-oracle", "ttlsa-batch-oracle"}:
         bcts_optimizer_initial = model.bcts_optimizer.state_dict()
 
     for epoch in range(args["num_epochs"]):
@@ -85,7 +86,7 @@ def run_experiment(args):
                 args["method"],
                 model.weights.tolist())
 
-        if args["method"] in {"ttlsa", "ttlsa-oracle", "ttlsa-noop"}:
+        if args["method"] in {"ttlsa", "ttlsa-oracle", "ttlsa-batch-oracle"}:
             with torch.inference_mode():
                 model.T.zero_()
                 model.b.zero_()
@@ -94,7 +95,7 @@ def run_experiment(args):
         for i, x, y, g in loaders["tr"]:
             train_loss += model.update(i, x, y, g, epoch)
 
-        if args["method"] in {"ttlsa", "ttlsa-oracle", "ttlsa-noop"}:
+        if args["method"] in {"ttlsa", "ttlsa-oracle", "ttlsa-batch-oracle"}:
             model.bcts_optimizer.load_state_dict(bcts_optimizer_initial)
 
             for i, x, y, g in loaders["va"]:
@@ -113,13 +114,18 @@ def run_experiment(args):
             necessary = { name for name in loaders.keys() if name != "tr" }
         for loader_name, loader in loaders.items():
             if loader_name in necessary:
-                avg_acc, corrects, totals, group_accs = model.accuracy(loader)
-                result["acc_" + loader_name] = group_accs
+                auc, avg_acc, corrects, totals, group_accs = model.accuracy(loader)
+                result["auc_" + loader_name] = auc
+                result["avg_acc_" + loader_name] = avg_acc
                 result["corrects_" + loader_name] = corrects
                 result["totals_" + loader_name] = totals
-                result["avg_acc_" + loader_name] = avg_acc
+                result["acc_" + loader_name] = group_accs
 
         print(json.dumps(result))
+
+        ckpt_path = f"ckpt/{stem}_epoch{epoch}.pt"
+        model.save(ckpt_path)
+        model.load(ckpt_path)
 
 
 if __name__ == "__main__":
@@ -138,7 +144,8 @@ if __name__ == "__main__":
     }[args["dataset"]]
 
     # don't calculate test accuracy when tuning hyperparameters
-    args["fast"] = args["batch_size"] is not None \
+    args["fast"] = args["fast"] \
+            or args["batch_size"] is not None \
             or args["lr"] is not None \
             or args["weight_decay"] is not None
 

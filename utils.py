@@ -79,7 +79,7 @@ chosen_hparams_best["chexpert-embedding"] = {
 
 
 for dataset in chosen_hparams_best:
-    for method in ["ttlsi", "ttlsa", "ttlsa-oracle", "ttlsa-noop"]:
+    for method in ["ttlsi", "ttlsa", "ttlsa-oracle", "ttlsa-batch-oracle"]:
         chosen_hparams_best[dataset][method] = chosen_hparams_best[dataset]["erm"]
 
 
