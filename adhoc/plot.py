@@ -26,7 +26,7 @@ def plot(args):
 
     plot_root = Path("figures")
     plot_root.mkdir(parents=True, exist_ok=True)
-    datasets = ["chexpert-embedding", "coloredmnist"]
+    datasets = ["chexpert-embedding"]
     methods = ["erm", "dro", "subg", "ttlsi", "ttlsa", "ttlsa-oracle", "ttlsa-batch-oracle"]
 
     imputed_set = { imputed for _, imputed, _ in everything }
@@ -49,7 +49,7 @@ def plot(args):
             plt.ylim((0.5, 1))
             plt.xlabel("Shift parameter")
             plt.ylabel(ylabel)
-            plt.title(f"{ylabel }on {dataset}")
+            plt.title(f"{ylabel} on {dataset}")
             plt.legend()
             plt.grid(True)
             fig.tight_layout()

@@ -442,7 +442,7 @@ def get_loaders(data_path, dataset_name, batch_size, method="erm", duplicates=No
 
     loaders = {
         "tr": dl(dataset_tr, batch_size, weights_tr is None, weights_tr),
-        "va": dl(Dataset(data_path, "va", None, imputed=imputed), 128, False, None),
+        "va": dl(Dataset(data_path, "va", None, imputed=imputed), 128, True, None),
     }
 
     if dataset_name in { "chexpert-embedding", "coloredmnist" }:
