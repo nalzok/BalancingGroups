@@ -106,7 +106,7 @@ def run_experiment(args):
             optimal_epoch = record["epoch"]
             optimal_acc_va = acc_va
 
-    ckpt_path = f"ckpt/chexpert-embedding_imputeNone_ttlsa-oracle_batch128_lr1e-05_decay0.01_seed_2023_2023_epoch{optimal_epoch}.pt"
+    ckpt_path = f"ckpt-final/{stem}_epoch{optimal_epoch}.pt"
     model.load(ckpt_path)
     result = {
         "args": args,

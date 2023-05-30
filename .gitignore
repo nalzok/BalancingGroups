@@ -9,3 +9,4 @@ MNIST/**
 lightning_logs/**
 joblogs/**
 figures/**
+ckpt/**

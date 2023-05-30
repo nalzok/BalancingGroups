@@ -349,11 +349,9 @@ class TTLSA(ERM):
         self.register_parameter("T", torch.nn.Parameter(torch.ones(1).cuda()))
         self.register_parameter("b", torch.nn.Parameter(torch.zeros(self.n_classes * self.n_groups).cuda()))
 
-        # FIXME: maybe we should use another learning rate for BCTS?
         self.bcts_optimizer = torch.optim.SGD(
             [self.T, self.b],
-            lr=self.hparams['lr'],
-            weight_decay=self.hparams['weight_decay'],
+            lr=1e-3,
             momentum=0.9)
 
     def _empirical_count(self, dataloader):
