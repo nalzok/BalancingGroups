@@ -65,16 +65,16 @@ chosen_hparams_best = {
 
 
 chosen_hparams_best["coloredmnist"] = {
-        "erm": (None, None, None, None),
-        "subg": (None, None, None, None),
-        "dro": (None, None, None, None),
+        "erm": (-2, -3, 300, 128),
+        "subg": (-2, -3, 300, 128),
+        "dro": (-2, -3, 300, 128),
         }
 
 
 chosen_hparams_best["chexpert-embedding"] = {
-        "erm": (-5, -2, 8, 128),
-        "subg": (-4, -3, 321, 128),
-        "dro": (-4, -3, 270, 128),
+        "erm": (-2, -3, 300, 128),
+        "subg": (-2, -3, 300, 128),
+        "dro": (-2, -3, 300, 128),
         }
 
 

@@ -106,7 +106,7 @@ def run_experiment(args):
             optimal_epoch = record["epoch"]
             optimal_acc_va = acc_va
 
-    ckpt_path = f"ckpt-final/{stem}_epoch{optimal_epoch}.pt"
+    ckpt_path = f"ckpt/{stem}_epoch{optimal_epoch}.pt"
     model.load(ckpt_path)
     result = {
         "args": args,

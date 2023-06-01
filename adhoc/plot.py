@@ -26,7 +26,7 @@ def plot(args):
 
     plot_root = Path("figures")
     plot_root.mkdir(parents=True, exist_ok=True)
-    datasets = ["chexpert-embedding"]
+    datasets = ["chexpert-embedding", "coloredmnist"]
     methods = ["erm", "dro", "subg", "ttlsi", "ttlsa", "ttlsa-oracle", "ttlsa-batch-oracle"]
 
     imputed_set = { imputed for _, imputed, _ in everything }
@@ -35,9 +35,13 @@ def plot(args):
             fig, ax = plt.subplots(figsize=(12, 6))
             ax.axvline(1/20, color="black", linestyle="dotted", linewidth=3)
 
+            empty = True
+
             for method in methods:
                 if (dataset, imputed, method) not in everything:
                     continue
+
+                empty = False
                 v = everything[(dataset, imputed, method)]
 
                 x = np.linspace(0, 1, 21)
@@ -46,7 +50,7 @@ def plot(args):
                 ax.errorbar(x, mean, std, label=method)
 
             ylabel = "AUC" if args.selector == "auc" else "Accuracy"
-            plt.ylim((0.5, 1))
+            plt.ylim((0.7 if dataset == "chexpert-embedding" else 0.95, 1))
             plt.xlabel("Shift parameter")
             plt.ylabel(ylabel)
             plt.title(f"{ylabel} on {dataset}")
@@ -55,8 +59,9 @@ def plot(args):
             fig.tight_layout()
 
             format_axes(ax)
-            for suffix in ("png", "pdf"):
-                plt.savefig(plot_root / f"{dataset}_imputed{imputed}_{args.selector}.{suffix}", bbox_inches='tight', dpi=300)
+            if not empty:
+                for suffix in ("png", "pdf"):
+                    plt.savefig(plot_root / f"{dataset}_imputed{imputed}_{args.selector}.{suffix}", bbox_inches='tight', dpi=300)
 
             plt.close(fig)
 
