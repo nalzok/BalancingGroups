@@ -351,7 +351,7 @@ class TTLSA(ERM):
 
         self.bcts_optimizer = torch.optim.SGD(
             [self.T, self.b],
-            lr=5e-2,
+            lr=1e-2,
             momentum=0.9)
 
     def _empirical_count(self, dataloader):

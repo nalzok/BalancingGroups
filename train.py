@@ -86,11 +86,6 @@ def run_experiment(args):
                 args["method"],
                 model.weights.tolist())
 
-        if args["method"] in {"ttlsa", "ttlsa-oracle", "ttlsa-batch-oracle"}:
-            with torch.inference_mode():
-                model.T.zero_()
-                model.b.zero_()
-
         train_loss = 0
         for i, x, y, g in loaders["tr"]:
             train_loss += model.update(i, x, y, g, epoch)
