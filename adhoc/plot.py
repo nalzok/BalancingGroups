@@ -21,6 +21,25 @@ selector_pattern = "(min|avg)"
 pattern = re.compile(f"^{dataset_pattern}_{imputation_pattern}_{method_pattern}_{hyperparem_pattern}_{seed_pattern}_{selector_pattern}.out$")
 
 
+ylim_table = {
+        ("chexpert-embedding", "auc"): (0.7, 1),
+        ("chexpert-embedding", "avg"): (0.5, 1),
+        ("chexpert-embedding", "min"): (0.5, 1),
+        ("coloredmnist", "auc"): (0.99, 1),
+        ("coloredmnist", "avg"): (0.95, 1),
+        ("coloredmnist", "min"): (0.9, 1),
+}
+
+legend_table = {
+        "erm": "ERM",
+        "dro": "gDRO",
+        "subg": "SUBG",
+        "ttlsi": "LA",
+        "ttlsa": "TTLSA",
+        "ttlsa-oracle": "TTLSA (Oracle)",
+}
+
+
 def plot(args):
     everything = collect(args)
 
@@ -47,14 +66,14 @@ def plot(args):
                 x = np.linspace(0, 1, 21)
                 mean = np.array([v[f"te-{split}"][0] for split in range(21)])
                 std = np.array([v[f"te-{split}"][1] for split in range(21)])
-                ax.errorbar(x, mean, std, label=method)
+                ax.errorbar(x, mean, std, label=legend_table[method])
 
             ylabel = "AUC" if args.selector == "auc" else "Accuracy"
-            plt.ylim((0.7 if dataset == "chexpert-embedding" else 0.95, 1))
+            plt.ylim(ylim_table[(dataset, args.selector)])
             plt.xlabel("Shift parameter")
             plt.ylabel(ylabel)
             plt.title(f"{ylabel} on {dataset}")
-            plt.legend()
+            plt.legend(ncols=2)
             plt.grid(True)
             fig.tight_layout()
 
