@@ -22,10 +22,10 @@ pattern = re.compile(f"^{dataset_pattern}_{imputation_pattern}_{method_pattern}_
 
 
 ylim_table = {
-        ("chexpert-embedding", "auc"): (0.7, 1),
+        ("chexpert-embedding", "auc"): (0.4, 1),
         ("chexpert-embedding", "avg"): (0.4, 1),
         ("chexpert-embedding", "min"): (0.0, 1),
-        ("coloredmnist", "auc"): (0.99, 1),
+        ("coloredmnist", "auc"): (0.995, 1),
         ("coloredmnist", "avg"): (0.95, 1),
         ("coloredmnist", "min"): (0.9, 1),
 }
@@ -73,7 +73,7 @@ def plot(args):
             plt.xlabel("Shift parameter")
             plt.ylabel(ylabel)
             plt.title(f"{ylabel} on {dataset}")
-            plt.legend(ncols=2)
+            plt.legend(ncols=2, loc="center")
             plt.grid(True)
             fig.tight_layout()
 
