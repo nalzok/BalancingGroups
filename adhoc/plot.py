@@ -73,7 +73,7 @@ def plot(args):
             plt.xlabel("Shift parameter")
             plt.ylabel(ylabel)
             plt.title(f"{ylabel} on {dataset}")
-            plt.legend(ncols=2, loc="center")
+            plt.legend(ncols=2)
             plt.grid(True)
             fig.tight_layout()
 
