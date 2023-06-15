@@ -23,8 +23,8 @@ pattern = re.compile(f"^{dataset_pattern}_{imputation_pattern}_{method_pattern}_
 
 ylim_table = {
         ("chexpert-embedding", "auc"): (0.7, 1),
-        ("chexpert-embedding", "avg"): (0.5, 1),
-        ("chexpert-embedding", "min"): (0.5, 1),
+        ("chexpert-embedding", "avg"): (0.4, 1),
+        ("chexpert-embedding", "min"): (0.0, 1),
         ("coloredmnist", "auc"): (0.99, 1),
         ("coloredmnist", "avg"): (0.95, 1),
         ("coloredmnist", "min"): (0.9, 1),
@@ -233,7 +233,7 @@ def format_axes(ax):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Aggregate results')
     parser.add_argument('--path', type=str, required=True)
-    parser.add_argument('--selector', type=str, choices=['min', 'avg', 'auc'])
+    parser.add_argument('--selector', type=str, required=True, choices=['min', 'avg', 'auc'])
     args = parser.parse_args()
 
     latexify(width_scale_factor=2, fig_height=2)
